@@ -95,6 +95,11 @@ a{color:var(--gold-ink)}
 .brand{flex:1;min-width:0}
 .brand h1{font-family:"Reem Kufi",serif;font-weight:600;font-size:17px;margin:0;letter-spacing:.2px}
 .brand p{margin:0;font-size:11.5px;color:var(--ink-3);display:flex;align-items:center;gap:6px}
+/* الإسناد أخفت من اسم المستخدم، فيبقى الترتيب: التطبيق ثم المستخدم ثم التوقيع */
+.brand .by{
+  font-family:"Reem Kufi",serif;font-weight:500;font-size:10px;
+  letter-spacing:.2px;color:var(--ink-3);opacity:.85;margin:1px 0 1px;
+}
 .pill{
   background:var(--gold-soft);color:var(--gold-ink);border:1px solid var(--gold-edge);
   border-radius:999px;padding:0 7px;font-size:10px;font-weight:600;line-height:16px;
