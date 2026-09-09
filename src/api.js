@@ -14,7 +14,13 @@ export const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, storageKey: "qml-auth" },
 });
 
-const emailOf = (username) => `${String(username).trim().toLowerCase()}@${USER_EMAIL_DOMAIN}`;
+// الموظف يدخل باسم مستخدم فنركّب له البريد الداخلي؛ ومن يملك بريداً
+// حقيقياً (الأدمن عادةً) يكتبه كما هو فيُستعمل حرفياً — وتبقى له
+// استعادة كلمة السر بالبريد.
+const emailOf = (id) => {
+  const s = String(id).trim().toLowerCase();
+  return s.includes("@") ? s : `${s}@${USER_EMAIL_DOMAIN}`;
+};
 
 // ---------------------------------------------------------------------
 //  الدخول
