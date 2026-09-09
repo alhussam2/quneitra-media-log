@@ -556,6 +556,7 @@ function resetForm() {
   $("#suggestNote").textContent = "";
   $("#fetchRow").hidden = true;
   $("#fetchNote").textContent = "";
+  { const d = $("#linkDup"); if (d) { d.hidden = true; d.textContent = ""; } }
   $("#onBehalfField").hidden = !isAdmin();
   if (isAdmin()) $("#fOwner").value = state.me.id;
   if (typeof renderDraftBanner === "function") renderDraftBanner();
@@ -600,8 +601,31 @@ function wireForm() {
     const v = $("#fLink").value.trim();
     $("#fetchRow").hidden = !/facebook\.com|fb\.watch|fb\.me/i.test(v);
   };
-  $("#fLink").addEventListener("input", showFetch);
-  $("#fLink").addEventListener("blur", (e) => { e.target.value = cleanUrl(e.target.value); showFetch(); });
+
+  // فحص التكرار حيّاً عبر كل الفريق، مؤجَّل ليهدأ أثناء الكتابة
+  let dupTimer, lastDup = null;
+  function showDup(info) {
+    lastDup = info;
+    const el = $("#linkDup");
+    if (!info) { el.hidden = true; el.className = "dup-warn"; el.textContent = ""; return; }
+    el.className = "dup-warn";
+    const who = info.is_mine ? "إنت سجّلتها" : `سجّلها ${esc(info.owner_name)}`;
+    el.innerHTML = `<span>⚠️</span><span><b>هالمادة مسجّلة مسبقاً</b> — ${who}`
+      + (info.entry_date ? ` بتاريخ ${esc(fmtDate(info.entry_date))}` : "") + ".</span>";
+    el.hidden = false;
+  }
+  async function checkDup() {
+    const v = cleanUrl($("#fLink").value);
+    if (!v || state.editingId) { showDup(null); return; }
+    const el = $("#linkDup");
+    el.hidden = false; el.className = "dup-warn checking"; el.textContent = "عم أفحص إذا مسجّلة…";
+    try { showDup(await api.checkLink(v)); }
+    catch { showDup(null); }                    // فشل الفحص لا يعطّل التسجيل
+  }
+  const scheduleDupCheck = () => { clearTimeout(dupTimer); dupTimer = setTimeout(checkDup, 500); };
+
+  $("#fLink").addEventListener("input", () => { showFetch(); showDup(null); scheduleDupCheck(); });
+  $("#fLink").addEventListener("blur", (e) => { e.target.value = cleanUrl(e.target.value); showFetch(); checkDup(); });
 
   $("#fetchBtn").addEventListener("click", async () => {
     const url = cleanUrl($("#fLink").value);
@@ -655,8 +679,15 @@ function wireForm() {
       extra: $("#fExtra").value.trim(),
     };
 
-    const dup = state.entries.find((e) => link && e.link === link && e.id !== state.editingId);
-    if (dup && !confirm(`هالرابط مسجّل من قبل بتاريخ ${fmtDate(dup.date)}.\nبدك تسجّله كمان مرة؟`)) return;
+    if (link && !state.editingId) {
+      let dup = lastDup;
+      try { dup = await api.checkLink(link); } catch {}   // أحدث فحص وقت الحفظ
+      if (dup) {
+        const who = dup.is_mine ? "إنت سجّلتها" : `سجّلها ${dup.owner_name}`;
+        const when = dup.entry_date ? ` بتاريخ ${fmtDate(dup.entry_date)}` : "";
+        if (!confirm(`هالمادة مسجّلة مسبقاً (${who}${when}).\nبدك تسجّلها كمان مرة؟`)) return;
+      }
+    }
 
     const btn = $("#saveBtn");
     btn.disabled = true;

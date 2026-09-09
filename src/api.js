@@ -111,6 +111,13 @@ export async function deleteEntry(id) {
   if (error) throw error;
 }
 
+/** فحص تكرار الرابط عبر كل الفريق — يرجّع {found, owner_name, entry_date, is_mine} أو null. */
+export async function checkLink(link) {
+  const { data, error } = await sb.rpc("link_check", { p_link: link });
+  if (error) throw error;
+  return (data && data[0] && data[0].found) ? data[0] : null;
+}
+
 // ---------------------------------------------------------------------
 //  آخر تقرير
 // ---------------------------------------------------------------------
