@@ -51,110 +51,109 @@ function meta(htmlText: string, prop: string): string | null {
 }
 
 Deno.serve(async (req) => {
- try {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
-  if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
-
-  const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SB_SECRET_KEY");
-  if (!SERVICE_KEY) return json({ error: "missing_service_key" }, 500);
-
-  // لا تُقرأ روابط لغير مستخدم مسجَّل ومفعَّل
-  const jwt = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
-  if (!jwt) return json({ error: "missing_token" }, 401);
-
-  const admin = createClient(Deno.env.get("SUPABASE_URL")!, SERVICE_KEY, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  const { data: caller } = await admin.auth.getUser(jwt);
-  if (!caller?.user) return json({ error: "invalid_token" }, 401);
-
-  const { data: me } = await admin
-    .from("profiles").select("active").eq("id", caller.user.id).maybeSingle();
-  if (!me?.active) return json({ error: "not_allowed" }, 403);
-
-  let body: { url?: string };
-  try { body = await req.json(); } catch { return json({ error: "bad_json" }, 400); }
-
-  const target = String(body.url ?? "").trim();
-  if (!/^https?:\/\/([a-z0-9-]+\.)*(facebook\.com|fb\.watch|fb\.me)\//i.test(target)) {
-    return json({ error: "not_facebook" }, 400);
-  }
-
-  // ---- (ب) قراءة الصفحة: العنوان ورقم الفيديو ----
-  let pageTitle: string | null = null;
-  let videoId: string | null = null;
-  let canonical: string | null = null;
-
-  let fetchError: string | null = null;
   try {
-    const res = await fetch(target, {
-      redirect: "follow",
-      cache: "no-store",
-      signal: AbortSignal.timeout(12_000),   // لا نترك الدالة معلّقة حتى تُقتل
-      headers: { "user-agent": CRAWLER_UA, "accept-language": "ar,en;q=0.8" },
+    if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
+    if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
+
+    const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SB_SECRET_KEY");
+    if (!SERVICE_KEY) return json({ error: "missing_service_key" }, 500);
+
+    // لا تُقرأ روابط لغير مستخدم مسجَّل ومفعَّل
+    const jwt = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+    if (!jwt) return json({ error: "missing_token" }, 401);
+
+    const admin = createClient(Deno.env.get("SUPABASE_URL")!, SERVICE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
     });
-    if (!res.ok) fetchError = `فيسبوك ردّ ${res.status}`;
-    const text = await res.text();
+    const { data: caller } = await admin.auth.getUser(jwt);
+    if (!caller?.user) return json({ error: "invalid_token" }, 401);
 
-    // og:description أنظف من og:title — الأخير مسبوق بعدد المشاهدات والتفاعلات
-    pageTitle = meta(text, "description");
-    if (!pageTitle) {
-      const t = meta(text, "title");
-      if (t) pageTitle = t.replace(/^[^|]*\|\s*/, "").trim();  // احذف «٢٫٥ ألف مشاهدة · ٤٦ تفاعلاً |»
+    const { data: me } = await admin
+      .from("profiles").select("active").eq("id", caller.user.id).maybeSingle();
+    if (!me?.active) return json({ error: "not_allowed" }, 403);
+
+    let body: { url?: string };
+    try { body = await req.json(); } catch { return json({ error: "bad_json" }, 400); }
+
+    const target = String(body.url ?? "").trim();
+    if (!/^https?:\/\/([a-z0-9-]+\.)*(facebook\.com|fb\.watch|fb\.me)\//i.test(target)) {
+      return json({ error: "not_facebook" }, 400);
     }
-    videoId = (text.match(/"video_id"\s*:\s*"(\d+)"/) || [])[1] ?? null;
-    if (!videoId) videoId = (target.match(/[?&]v=(\d+)/) || target.match(/\/videos\/(?:[^/]*\/)?(\d+)/) || [])[1] ?? null;
 
-    const alt = text.match(/hreflang="x-default" href="([^"]+)"/);
-    if (alt) canonical = decodeURIComponent(alt[1]);
-  } catch (e) {
-    fetchError = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
-  }
+    // ---- (ب) قراءة الصفحة: العنوان ورقم الفيديو ----
+    let pageTitle: string | null = null;
+    let videoId: string | null = null;
+    let canonical: string | null = null;
 
-  // ---- (أ) Graph API: التاريخ والمدة والعنوان الرسمي ----
-  const token = Deno.env.get("FB_PAGE_TOKEN");
-  let date: string | null = null;
-  let duration: string | null = null;
-  let graphTitle: string | null = null;
-  let graphError: string | null = null;
-
-  if (token && videoId) {
+    let fetchError: string | null = null;
     try {
-      const url = `${GRAPH}/${videoId}?fields=title,description,created_time,length&access_token=${encodeURIComponent(token)}`;
-      const r = await fetch(url);
-      const g = await r.json();
-      if (g.error) {
-        graphError = String(g.error.message ?? "graph_error");
-      } else {
-        if (g.created_time) date = String(g.created_time).slice(0, 10);
-        if (typeof g.length === "number") duration = fmtDuration(g.length);
-        graphTitle = g.title || g.description || null;
+      const res = await fetch(target, {
+        redirect: "follow",
+        cache: "no-store",
+        signal: AbortSignal.timeout(12_000),   // لا نترك الدالة معلّقة حتى تُقتل
+        headers: { "user-agent": CRAWLER_UA, "accept-language": "ar,en;q=0.8" },
+      });
+      if (!res.ok) fetchError = `فيسبوك ردّ ${res.status}`;
+      const text = await res.text();
+
+      // og:description أنظف من og:title — الأخير مسبوق بعدد المشاهدات والتفاعلات
+      pageTitle = meta(text, "description");
+      if (!pageTitle) {
+        const t = meta(text, "title");
+        if (t) pageTitle = t.replace(/^[^|]*\|\s*/, "").trim();  // احذف «٢٫٥ ألف مشاهدة · ٤٦ تفاعلاً |»
       }
+      videoId = (text.match(/"video_id"\s*:\s*"(\d+)"/) || [])[1] ?? null;
+      if (!videoId) videoId = (target.match(/[?&]v=(\d+)/) || target.match(/\/videos\/(?:[^/]*\/)?(\d+)/) || [])[1] ?? null;
+
+      const alt = text.match(/hreflang="x-default" href="([^"]+)"/);
+      if (alt) canonical = decodeURIComponent(alt[1]);
     } catch (e) {
-      graphError = String(e);
+      fetchError = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
     }
-  }
 
-  const title = (graphTitle || pageTitle || "").replace(/\s+/g, " ").trim();
-  if (!title && !date && !duration) {
-    return json({ error: "nothing_found", detail: fetchError, videoId, canonical }, 404);
-  }
+    // ---- (أ) Graph API: التاريخ والمدة والعنوان الرسمي ----
+    const token = Deno.env.get("FB_PAGE_TOKEN");
+    let date: string | null = null;
+    let duration: string | null = null;
+    let graphTitle: string | null = null;
+    let graphError: string | null = null;
 
-  return json({
-    ok: true,
-    title,
-    date,                       // null ما لم يُضبط FB_PAGE_TOKEN
-    duration,                   // null ما لم يُضبط FB_PAGE_TOKEN
-    videoId,
-    canonical,
-    source: graphTitle ? "graph" : "page",
-    hasToken: Boolean(token),
-    graphError,                 // يظهر في الواجهة حين يكون التوكن منتهياً
-    fetchError,                 // سبب تعذّر قراءة الصفحة، إن حصل
-  });
-});
- } catch (e) {
-   // بلا هذا الغلاف يموت الطلب دون ترويسات CORS، فيرى المتصفح "بلا رد"
-   return json({ error: "server_error", detail: e instanceof Error ? e.message : String(e) }, 500);
- }
+    if (token && videoId) {
+      try {
+        const url = `${GRAPH}/${videoId}?fields=title,description,created_time,length&access_token=${encodeURIComponent(token)}`;
+        const r = await fetch(url);
+        const g = await r.json();
+        if (g.error) {
+          graphError = String(g.error.message ?? "graph_error");
+        } else {
+          if (g.created_time) date = String(g.created_time).slice(0, 10);
+          if (typeof g.length === "number") duration = fmtDuration(g.length);
+          graphTitle = g.title || g.description || null;
+        }
+      } catch (e) {
+        graphError = String(e);
+      }
+    }
+
+    const title = (graphTitle || pageTitle || "").replace(/\s+/g, " ").trim();
+    if (!title && !date && !duration) {
+      return json({ error: "nothing_found", detail: fetchError, videoId, canonical }, 404);
+    }
+
+    return json({
+      ok: true,
+      title,
+      date,                       // null ما لم يُضبط FB_PAGE_TOKEN
+      duration,                   // null ما لم يُضبط FB_PAGE_TOKEN
+      videoId,
+      canonical,
+      source: graphTitle ? "graph" : "page",
+      hasToken: Boolean(token),
+      graphError,                 // يظهر في الواجهة حين يكون التوكن منتهياً
+      fetchError,                 // سبب تعذّر قراءة الصفحة، إن حصل
+    });
+  } catch (e) {
+    // بلا هذا الغلاف يموت الطلب دون ترويسات CORS، فيرى المتصفح «بلا رد»
+    return json({ error: "server_error", detail: e instanceof Error ? `${e.name}: ${e.message}` : String(e) }, 500);
+  }
 });
