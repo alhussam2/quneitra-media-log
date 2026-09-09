@@ -153,6 +153,7 @@ const FN_ERRORS = {
   last_admin: "ما بينفع تحذف آخر حساب أدمن.",
   invalid_token: "انتهت الجلسة — سجّل دخول من جديد.",
   missing_token: "انتهت الجلسة — سجّل دخول من جديد.",
+  missing_service_key: "الدالة ناقصها مفتاح الخدمة — أضف SB_SECRET_KEY في Edge Functions → Secrets.",
 };
 
 async function callAdminFn(payload) {

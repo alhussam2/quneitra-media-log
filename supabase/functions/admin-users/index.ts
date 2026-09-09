@@ -36,9 +36,18 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
 
+  // المشاريع القديمة تحقن SUPABASE_SERVICE_ROLE_KEY تلقائياً؛ المشاريع
+  // الجديدة تستعمل مفتاحاً بصيغة sb_secret_... تضيفه أنت في Secrets
+  // باسم SB_SECRET_KEY. نقبل الاثنين.
+  const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ??
+                      Deno.env.get("SB_SECRET_KEY");
+  if (!SERVICE_KEY) {
+    return json({ error: "missing_service_key" }, 500);
+  }
+
   const admin = createClient(
     Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    SERVICE_KEY,
     { auth: { persistSession: false, autoRefreshToken: false } },
   );
 
