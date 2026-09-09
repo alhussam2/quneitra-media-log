@@ -289,6 +289,54 @@ function renderDupPanel() {
     }));
 }
 
+
+// المواد القديمة بلا رقم فيديو مخزَّن (وروابطها فيسبوكية) — للمطابقة الرجعية
+function backfillCandidates() {
+  return state.entries.filter((e) =>
+    e.link && !e.fb_id && /facebook\.com|fb\.watch|fb\.me/i.test(e.link)
+    && !/(\d{10,})/.test(e.link));   // ما فيه رقم فيديو بالرابط أصلاً
+}
+
+function renderBackfill() {
+  const slot = $("#backfillSlot");
+  if (!slot) return;
+  if (!isAdmin()) { slot.innerHTML = ""; return; }
+  const n = backfillCandidates().length;
+  if (!n) { slot.innerHTML = ""; return; }
+  slot.innerHTML =
+    `<div class="backfill"><span class="bf-txt">${plural(n)} قديمة بلا مطابقة كاملة — `
+    + `حلّ أرقام الفيديو لتُكشف كتكرار.</span>`
+    + `<button class="bf-btn" id="backfillBtn">حدّثها</button>`
+    + `<span class="bf-prog" id="backfillProg"></span></div>`;
+  $("#backfillBtn").addEventListener("click", runBackfill);
+}
+
+let backfilling = false;
+async function runBackfill() {
+  if (backfilling) return;
+  backfilling = true;
+  const btn = $("#backfillBtn"), prog = $("#backfillProg");
+  if (btn) btn.disabled = true;
+  const list = backfillCandidates();
+  let done = 0, matched = 0, failed = 0;
+  for (const e of list) {
+    if (prog) prog.textContent = `${++done} / ${list.length}…`;
+    try {
+      const r = await api.lookupFacebook(e.link);
+      if (r && r.videoId) {
+        await api.setEntryFbId(e.id, String(r.videoId));
+        const i = state.entries.findIndex((x) => x.id === e.id);
+        if (i > -1) state.entries[i] = { ...state.entries[i], fb_id: String(r.videoId) };
+        matched++;
+      } else { failed++; }
+    } catch { failed++; }
+    await new Promise((res) => setTimeout(res, 250));   // تهدئة لفيسبوك
+  }
+  backfilling = false;
+  renderAll();
+  toast(`تمّت المطابقة — حُدِّثت ${matched}${failed ? ` · تعذّرت ${failed}` : ""}`, matched ? "ok" : "err");
+}
+
 /* =====================================================================
    العرض
    ===================================================================== */
@@ -476,7 +524,7 @@ function renderMe() {
 
 function renderAll() {
   renderMe(); renderStrip(); renderReminder(); renderList(); renderReport(); renderUsers();
-  renderDupAlert(); renderDupPanel();
+  renderDupAlert(); renderDupPanel(); renderBackfill();
 }
 
 

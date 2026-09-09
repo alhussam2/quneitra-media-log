@@ -108,6 +108,11 @@ export async function updateEntry(id, e) {
   return toEntry(data);
 }
 
+export async function setEntryFbId(id, fb_id) {
+  const { error } = await sb.from("entries").update({ fb_id }).eq("id", id);
+  if (error) throw error;
+}
+
 export async function deleteEntry(id) {
   const { error } = await sb.from("entries").delete().eq("id", id);
   if (error) throw error;
