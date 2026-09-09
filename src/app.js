@@ -373,6 +373,160 @@ function renderAll() {
   renderMe(); renderStrip(); renderReminder(); renderList(); renderReport(); renderUsers();
 }
 
+
+/* =====================================================================
+   السمة (فاتح / مظلم)
+   القيَم: "light" أو "dark" محفوظة، أو غيابها = اتّبع نظام الجهاز.
+   ===================================================================== */
+const THEME_KEY = "qml-theme";
+
+function effectiveTheme() {
+  const saved = document.documentElement.getAttribute("data-theme");
+  if (saved) return saved;
+  return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function applyThemeColor() {
+  // نلوّن شريط حالة المتصفح/التطبيق بلون أرضية السمة الحالية
+  const bg = getComputedStyle(document.body).backgroundColor;
+  const meta = document.getElementById("themeColor");
+  if (meta && bg) meta.setAttribute("content", bg);
+}
+
+function toggleTheme() {
+  const next = effectiveTheme() === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  try { localStorage.setItem(THEME_KEY, next); } catch {}
+  applyThemeColor();
+}
+
+/* =====================================================================
+   المسودة — حفظ تلقائي لما يُكتب في نموذج التسجيل
+   لكل مستخدم على حدة وعلى جهازه، فلا يضيع الإدخال لو طلع أو انقطع.
+   المسودة لمادة جديدة فقط، لا للتعديل على مادة قائمة.
+   ===================================================================== */
+const draftKey = () => `qml-draft-${state.me ? state.me.id : "anon"}`;
+const nudgeKey = () => `qml-draft-nudge-${state.me ? state.me.id : "anon"}`;
+let draftTimer;
+
+function readDraft() {
+  try { return JSON.parse(localStorage.getItem(draftKey()) || "null"); } catch { return null; }
+}
+function clearDraft() {
+  try { localStorage.removeItem(draftKey()); } catch {}
+  renderDraftBanner();
+}
+
+function collectForm() {
+  return {
+    owner: isAdmin() ? $("#fOwner").value : null,
+    dump: $("#dump").value,
+    link: $("#fLink").value,
+    title: $("#fTitle").value,
+    date: $("#fDate").value,
+    dateTouched: state.dateTouched,
+    extra: $("#fExtra").value,
+    dur: $("#fDur").value,
+    notes: $("#fNotes").value,
+    at: Date.now(),
+  };
+}
+const draftHasContent = (d) =>
+  !!(d && (d.title.trim() || d.link.trim() || d.notes.trim() || d.dump.trim() || d.extra.trim() || d.dur.trim()));
+
+// تُستدعى فوراً (pagehide) أو مؤجَّلة (أثناء الكتابة)
+function saveDraftNow() {
+  if (state.editingId) return;                 // التعديل لا يُحفظ كمسودة
+  const d = collectForm();
+  if (!draftHasContent(d)) { try { localStorage.removeItem(draftKey()); } catch {} return; }
+  try { localStorage.setItem(draftKey(), JSON.stringify(d)); } catch {}
+}
+function scheduleDraftSave() {
+  clearTimeout(draftTimer);
+  draftTimer = setTimeout(() => { saveDraftNow(); renderDraftBanner(); }, 600);
+}
+
+function restoreDraft() {
+  const d = readDraft();
+  if (!d) return;
+  resetForm();                                 // نبدأ من نظيف ثم نملأ
+  if (isAdmin() && d.owner) $("#fOwner").value = d.owner;
+  $("#dump").value = d.dump || "";
+  $("#fLink").value = d.link || "";
+  $("#fTitle").value = d.title || "";
+  $("#fExtra").value = d.extra || "";
+  $("#fDur").value = d.dur || "";
+  $("#fNotes").value = d.notes || "";
+  if (d.date) { $("#fDate").value = d.date; }
+  state.dateTouched = !!d.dateTouched;
+  setDateSrc(d.dateTouched ? "من المسودة" : "تاريخ اليوم");
+  $("#suggestRow").hidden = (d.dump || "").replace(URL_RE, " ").trim().length < 20;
+  setView("add");
+  renderDraftBanner();
+  $("#fTitle").focus();
+}
+
+function renderDraftBanner() {
+  const slot = $("#draftSlot");
+  if (!slot) return;
+  const d = readDraft();
+  // لا نُظهر الشريط ونحن نكتب نفس المسودة الآن (النموذج غير فارغ)
+  const formBusy = draftHasContent(collectForm()) && !state.editingId;
+  if (!draftHasContent(d) || formBusy) { slot.innerHTML = ""; return; }
+
+  const when = new Date(d.at);
+  const label = when.toLocaleDateString("ar", { day: "numeric", month: "long" })
+    + " " + when.toLocaleTimeString("ar", { hour: "2-digit", minute: "2-digit" });
+  const preview = (d.title || d.link || d.dump || "مسودة").trim().slice(0, 40);
+  slot.innerHTML =
+    `<div class="draft-banner"><div class="dtxt"><b>عندك مسودة غير محفوظة</b> — `
+    + `${esc(preview)}<br><time>${esc(label)}</time></div>`
+    + `<button class="dact resume" id="draftResume">أكمِل</button>`
+    + `<button class="dact discard" id="draftDiscard">احذف</button></div>`;
+  $("#draftResume").addEventListener("click", restoreDraft);
+  $("#draftDiscard").addEventListener("click", () => {
+    if (confirm("تنمسح المسودة نهائياً؟")) clearDraft();
+  });
+}
+
+/* =====================================================================
+   الإشعار بالمسودة — مرة في اليوم عند فتح التطبيق
+   الويب لا يشعر والتطبيق مغلق دون خادم دفع؛ فنشعر عند الفتح إن سُمح.
+   ===================================================================== */
+const NOTIF_KEY = "qml-notif-on";
+
+function notifEnabled() {
+  try { return localStorage.getItem(NOTIF_KEY) === "1"; } catch { return false; }
+}
+
+async function enableNotif(on) {
+  if (!on) { try { localStorage.setItem(NOTIF_KEY, "0"); } catch {}; return true; }
+  if (!("Notification" in window)) { toast("جهازك ما بيدعم الإشعارات", "err"); return false; }
+  let perm = Notification.permission;
+  if (perm === "default") perm = await Notification.requestPermission();
+  if (perm !== "granted") { toast("لازم تسمح بالإشعارات من إعدادات المتصفح", "err"); return false; }
+  try { localStorage.setItem(NOTIF_KEY, "1"); } catch {}
+  return true;
+}
+
+function maybeNudgeDraft() {
+  const d = readDraft();
+  if (!draftHasContent(d)) return;
+  if (!notifEnabled() || !("Notification" in window) || Notification.permission !== "granted") return;
+  const today = todayISO();
+  let last = "";
+  try { last = localStorage.getItem(nudgeKey()) || ""; } catch {}
+  if (last === today) return;                  // مرة واحدة باليوم
+  try {
+    new Notification("سجل مواد القنيطرة", {
+      body: "عندك مسودة مادة غير محفوظة — تحب تكمّلها؟",
+      icon: "assets/icon-192.png",
+      tag: "qml-draft",
+    });
+    localStorage.setItem(nudgeKey(), today);
+  } catch {}
+}
+
 /* ------------------------------ التنقّل ----------------------------- */
 function setView(v) {
   ["add", "list", "report", "users", "settings"].forEach((n) => {
@@ -404,9 +558,16 @@ function resetForm() {
   $("#fetchNote").textContent = "";
   $("#onBehalfField").hidden = !isAdmin();
   if (isAdmin()) $("#fOwner").value = state.me.id;
+  if (typeof renderDraftBanner === "function") renderDraftBanner();
 }
 
 function wireForm() {
+  // أي كتابة في النموذج تجدول حفظ مسودة، والخروج المفاجئ يحفظ فوراً
+  ["#dump", "#fLink", "#fTitle", "#fExtra", "#fDur", "#fNotes", "#fDate"].forEach((sel) =>
+    $(sel).addEventListener("input", scheduleDraftSave));
+  addEventListener("visibilitychange", () => { if (document.hidden) saveDraftNow(); });
+  addEventListener("pagehide", saveDraftNow);
+
   $("#dump").addEventListener("input", (e) => {
     const txt = e.target.value;
     const urls = txt.match(URL_RE);
@@ -504,6 +665,7 @@ function wireForm() {
         const ownerId = isAdmin() ? $("#fOwner").value : state.me.id;
         const owner = state.profiles.find((p) => p.id === ownerId) || state.me;
         state.entries.push(await api.createEntry(payload, owner));
+        clearDraft();
         toast("تسجّلت المادة", "ok");
       }
       sortEntries();
@@ -727,6 +889,19 @@ function wireSettings() {
   $("#gearBtn").addEventListener("click", () =>
     setView($("#view-settings").classList.contains("on") ? "add" : "settings"));
 
+  $("#themeBtn").addEventListener("click", toggleTheme);
+
+  // مفتاح الإشعار يعكس حالته الفعلية، ويطلب الإذن عند التفعيل
+  const nt = $("#notifToggle");
+  if (nt) {
+    nt.checked = notifEnabled() && ("Notification" in window) && Notification.permission === "granted";
+    nt.addEventListener("change", async () => {
+      const ok = await enableNotif(nt.checked);
+      nt.checked = ok && nt.checked;
+      if (ok && nt.checked) toast("تمام — رح ذكّرك بالمسودة", "ok");
+    });
+  }
+
   $("#pwForm").addEventListener("submit", async (ev) => {
     ev.preventDefault();
     const a = $("#pw1").value, b = $("#pw2").value;
@@ -824,6 +999,10 @@ async function enterApp() {
   renderAll();
   setPreset("month");
   setView("add");
+
+  applyThemeColor();
+  renderDraftBanner();   // ينبّه أول ما يفوت لو في مسودة
+  maybeNudgeDraft();     // إشعار مرة باليوم إن سُمح
 }
 
 function wireTabs() {

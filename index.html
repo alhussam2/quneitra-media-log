@@ -5,8 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>سجل مواد القنيطرة</title>
 <meta name="description" content="تسجيل المواد المنتَجة وتصدير تقارير الإنجاز — مديرية إعلام القنيطرة">
-<meta name="theme-color" content="#F6F4EF" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#15161A" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#F6F4EF" id="themeColor">
+<script>
+  // نطبّق السمة المحفوظة فوراً قبل أول رسم، فلا يومض الوضع الخاطئ
+  try {
+    var t = localStorage.getItem("qml-theme");
+    if (t) document.documentElement.setAttribute("data-theme", t);
+  } catch (e) {}
+</script>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 <link rel="manifest" href="manifest.webmanifest">
@@ -60,7 +66,11 @@
         <p class="by">تطوير المهندس حسام عمر المقداد</p>
         <p><span class="avatar sm" id="meAvatar"></span><span id="meName">—</span> <span class="pill" id="meRole" hidden>أدمن</span></p>
       </div>
-      <button class="icon-btn" id="gearBtn" aria-pressed="false" aria-label="الإعدادات" title="الإعدادات">
+      <button class="icon-btn round" id="themeBtn" aria-label="تبديل الوضع" title="الوضع المظلم / العادي">
+        <svg class="ic-sun" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/></svg>
+        <svg class="ic-moon" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.6 6.6 0 0 0 9.8 9.8z"/></svg>
+      </button>
+      <button class="icon-btn round" id="gearBtn" aria-pressed="false" aria-label="الإعدادات" title="الإعدادات">
         <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       </button>
     </div>
@@ -72,6 +82,7 @@
 </header>
 
 <main class="shell">
+  <div id="draftSlot"></div>
   <div id="reminderSlot"></div>
 
   <!-- ---------------------------- تسجيل ---------------------------- -->
@@ -238,6 +249,15 @@
         <div><dt>الصلاحية</dt><dd id="sRole">—</dd></div>
         <div><dt>المديرية الفرعية</dt><dd id="sDir">—</dd></div>
       </dl>
+
+      <h2 class="eyebrow" style="margin-top:24px">التذكير بالمسودة</h2>
+      <label class="switch-row">
+        <span>
+          ذكّرني بإشعار إذا في مسودة غير محفوظة
+          <span class="switch-note">بيوصلك أول ما تفتح التطبيق باليوم. لازم تسمح بالإشعارات.</span>
+        </span>
+        <input type="checkbox" id="notifToggle" class="switch">
+      </label>
 
       <h2 class="eyebrow" style="margin-top:24px">صورتي</h2>
       <div class="avatar-row">
