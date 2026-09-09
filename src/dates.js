@@ -159,3 +159,20 @@ export function draftTitle(caption) {
   }
   return t.replace(/[،,\-–—:;\s]+$/, "").trim();
 }
+
+/**
+ * تصنّف ما يُستخرج من النص: هل هو تاريخ صريح (٩ أيلول ٢٠٢٦) فيكون دقيقاً،
+ * أم مشتقّ من تعبير نسبي (منذ ٣ أسابيع) فيكون تقريبياً ويحتاج تأكيداً؟
+ * التقريبي خطر في التقارير الرسمية لأنه قد يقع في الجهة الخطأ من حدّ الشهر.
+ * @returns {{iso:string, approx:boolean}|null}
+ */
+export function classifyDate(raw) {
+  const iso = findDateInText(raw);
+  if (!iso) return null;
+  const t = normDigits(raw).toLowerCase();
+  const relative = /(?:منذ|قبل)\s*\d|أمس|امس|مبارح|yesterday|اليوم|today|\b\d{1,2}\s*[dwh]\b|ago/.test(t);
+  const absolute = /20\d{2}/.test(t) ||
+    /(كانون|شباط|آذار|اذار|نيسان|أيار|ايار|حزيران|تموز|آب|أيلول|ايلول|تشرين|يناير|فبراير|مارس|أبريل|ابريل|مايو|يونيو|يوليو|أغسطس|اغسطس|سبتمبر|أكتوبر|اكتوبر|نوفمبر|ديسمبر|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/.test(t);
+  // صريح إن ذُكر شهر أو سنة؛ وإلا (نسبي بحت) فهو تقريبي
+  return { iso, approx: !absolute && relative };
+}

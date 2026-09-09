@@ -10,7 +10,7 @@ import * as api from "./api.js";
 import { buildWorkbook, downloadBlob } from "./xlsx.js";
 import {
   AR_MONTHS, AR_SHORT, iso, todayISO, parseISO, addDays,
-  fmtDate, fmtShort, monthBounds, findDateInText, draftTitle, normDigits,
+  fmtDate, fmtShort, monthBounds, findDateInText, classifyDate, draftTitle, normDigits,
 } from "./dates.js";
 
 const $ = (s) => document.querySelector(s);
@@ -577,9 +577,14 @@ function wireForm() {
     $("#suggestRow").hidden = caption.length < 20;
 
     if (!state.dateTouched) {
-      const found = findDateInText(caption);
-      if (found) { $("#fDate").value = found; setDateSrc("من نص المنشور"); }
-      else { $("#fDate").value = todayISO(); setDateSrc(caption ? "ما لقيت تاريخ بالنص — اليوم" : "تاريخ اليوم"); }
+      const c = classifyDate(caption);
+      if (c) {
+        $("#fDate").value = c.iso;
+        setDateSrc(c.approx ? "تقريبي من النص — تأكّده" : "من نص المنشور");
+      } else {
+        $("#fDate").value = todayISO();
+        setDateSrc(caption ? "ما لقيت تاريخ بالنص — اليوم" : "تاريخ اليوم");
+      }
     }
   });
 
