@@ -10,7 +10,7 @@ import * as api from "./api.js";
 import { buildWorkbook, downloadBlob } from "./xlsx.js";
 import {
   AR_MONTHS, AR_SHORT, iso, todayISO, parseISO, addDays,
-  fmtDate, fmtShort, monthBounds, findDateInText, draftTitle,
+  fmtDate, fmtShort, monthBounds, findDateInText, draftTitle, normDigits,
 } from "./dates.js";
 
 const $ = (s) => document.querySelector(s);
@@ -65,6 +65,41 @@ function cleanUrl(u) {
 const hostOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; } };
 
 const URL_RE = /https?:\/\/[^\s؀-ۿ]+/g;
+
+
+/* --------------------------- مدة الفيديو ---------------------------
+   تُحفظ داخل الملاحظات بصيغة ثابتة، فتظهر في عمود «الملاحظات» بملف
+   Excel كما اعتاد المستخدم أن يكتبها بيده. تقبل 13:42 أو ١٣:٤٢ أو
+   عدد ثوانٍ خاماً (822 → 13:42). */
+const DUR_LABEL = "مدة المادة";
+
+function normDuration(v) {
+  const raw = normDigits(String(v || "").trim()).replace(/[.,]/g, ":");
+  if (!raw) return "";
+  if (/^\d+$/.test(raw)) {                     // ثوانٍ خام
+    const n = +raw;
+    return n >= 60
+      ? `${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")}`
+      : `0:${String(n).padStart(2, "0")}`;
+  }
+  const p = raw.split(":").map((x) => x.trim()).filter(Boolean).map(Number);
+  if (p.some(Number.isNaN)) return raw;
+  if (p.length === 2) return `${p[0]}:${String(p[1]).padStart(2, "0")}`;
+  if (p.length === 3) return `${p[0]}:${String(p[1]).padStart(2, "0")}:${String(p[2]).padStart(2, "0")}`;
+  return raw;
+}
+
+const joinNotes = (dur, notes) => {
+  const d = normDuration(dur);
+  const n = String(notes || "").trim();
+  if (!d) return n;
+  return n ? `${DUR_LABEL}: ${d} — ${n}` : `${DUR_LABEL}: ${d}`;
+};
+
+function splitNotes(notes) {
+  const m = String(notes || "").match(/^\s*مدة المادة\s*[:：]\s*([^—\n]+?)\s*(?:—\s*([\s\S]*))?$/);
+  return m ? { dur: m[1].trim(), rest: (m[2] || "").trim() } : { dur: "", rest: String(notes || "") };
+}
 
 /* --------------------------- نطاقات التواريخ ------------------------ */
 function rangeFor(kind) {
@@ -308,7 +343,7 @@ const setDateSrc = (t) => { $("#dateSrc").textContent = t; };
 function resetForm() {
   state.editingId = null;
   state.dateTouched = false;
-  ["#dump", "#fLink", "#fTitle", "#fNotes", "#fExtra"].forEach((s) => { $(s).value = ""; });
+  ["#dump", "#fLink", "#fTitle", "#fNotes", "#fExtra", "#fDur"].forEach((s) => { $(s).value = ""; });
   $("#fDate").value = todayISO();
   setDateSrc("تاريخ اليوم");
   $("#addHeading").textContent = "تسجيل مادة";
@@ -363,7 +398,7 @@ function wireForm() {
     const payload = {
       title, link,
       date: $("#fDate").value || todayISO(),
-      notes: $("#fNotes").value.trim(),
+      notes: joinNotes($("#fDur").value, $("#fNotes").value),
       extra: $("#fExtra").value.trim(),
     };
 
@@ -401,7 +436,9 @@ function wireForm() {
       $("#fTitle").value = e.title || "";
       $("#fLink").value = e.link || "";
       $("#fDate").value = e.date || todayISO();
-      $("#fNotes").value = e.notes || "";
+      const parts = splitNotes(e.notes);
+      $("#fDur").value = parts.dur;
+      $("#fNotes").value = parts.rest;
       $("#fExtra").value = e.extra || "";
       $("#dump").value = "";
       state.dateTouched = true;
