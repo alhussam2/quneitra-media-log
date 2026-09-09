@@ -409,7 +409,8 @@ function wireForm() {
       note.textContent = got.length
         ? (r.hasToken ? `جاب ${got.join(" و")}.` : `جاب ${got.join(" و")}. التاريخ والمدة بدهن توكن الصفحة.`)
         : "ما لقيت بيانات بهالرابط.";
-      if (r.graphError) note.textContent += " (توكن الصفحة ما اشتغل — راجع الأدمن.)";
+      if (r.graphError) note.textContent += " (توكن الصفحة ما اشتغل.)";
+      if (r.fetchError) note.textContent += ` [${r.fetchError}]`;
     } catch (err) {
       note.textContent = err.message || "ما زبطت القراءة.";
     } finally {

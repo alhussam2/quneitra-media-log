@@ -163,6 +163,7 @@ const FN_ERRORS = {
   not_facebook: "هذا مو رابط فيسبوك.",
   nothing_found: "ما قدرت أقرأ شي من هالرابط — تأكد إنه منشور عام.",
   not_allowed: "حسابك معطَّل.",
+  server_error: "الدالة وقعت — شوف Logs في Supabase.",
 };
 
 async function callFn(name, payload) {

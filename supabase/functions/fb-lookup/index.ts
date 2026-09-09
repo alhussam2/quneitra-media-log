@@ -51,6 +51,7 @@ function meta(htmlText: string, prop: string): string | null {
 }
 
 Deno.serve(async (req) => {
+ try {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
 
@@ -84,11 +85,15 @@ Deno.serve(async (req) => {
   let videoId: string | null = null;
   let canonical: string | null = null;
 
+  let fetchError: string | null = null;
   try {
     const res = await fetch(target, {
       redirect: "follow",
+      cache: "no-store",
+      signal: AbortSignal.timeout(12_000),   // لا نترك الدالة معلّقة حتى تُقتل
       headers: { "user-agent": CRAWLER_UA, "accept-language": "ar,en;q=0.8" },
     });
+    if (!res.ok) fetchError = `فيسبوك ردّ ${res.status}`;
     const text = await res.text();
 
     // og:description أنظف من og:title — الأخير مسبوق بعدد المشاهدات والتفاعلات
@@ -102,7 +107,9 @@ Deno.serve(async (req) => {
 
     const alt = text.match(/hreflang="x-default" href="([^"]+)"/);
     if (alt) canonical = decodeURIComponent(alt[1]);
-  } catch { /* نكمل بما توفّر */ }
+  } catch (e) {
+    fetchError = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+  }
 
   // ---- (أ) Graph API: التاريخ والمدة والعنوان الرسمي ----
   const token = Deno.env.get("FB_PAGE_TOKEN");
@@ -130,7 +137,7 @@ Deno.serve(async (req) => {
 
   const title = (graphTitle || pageTitle || "").replace(/\s+/g, " ").trim();
   if (!title && !date && !duration) {
-    return json({ error: "nothing_found", videoId, canonical }, 404);
+    return json({ error: "nothing_found", detail: fetchError, videoId, canonical }, 404);
   }
 
   return json({
@@ -143,5 +150,11 @@ Deno.serve(async (req) => {
     source: graphTitle ? "graph" : "page",
     hasToken: Boolean(token),
     graphError,                 // يظهر في الواجهة حين يكون التوكن منتهياً
+    fetchError,                 // سبب تعذّر قراءة الصفحة، إن حصل
   });
+});
+ } catch (e) {
+   // بلا هذا الغلاف يموت الطلب دون ترويسات CORS، فيرى المتصفح "بلا رد"
+   return json({ error: "server_error", detail: e instanceof Error ? e.message : String(e) }, 500);
+ }
 });
