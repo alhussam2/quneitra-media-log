@@ -6,8 +6,8 @@
 //  المفتاح الخطير (service_role) لا يوجد هنا ولا في أي ملف بالمستودع.
 // =====================================================================
 
-export const SUPABASE_URL = "https://pfqployzuflcbgrogmrh.supabase.co";
-export const SUPABASE_ANON_KEY = "__ضع_المفتاح_العام_هنا__"; // anon / publishable key
+export const SUPABASE_URL = "https://sxfdahhkuakufcmwwmrw.supabase.co";
+export const SUPABASE_ANON_KEY = "sb_publishable_cOFa7Fo79_KpeZRrwhyHzA_kqdmMveV";
 
 // لازم يطابق EMAIL_DOMAIN في supabase/functions/admin-users/index.ts
 export const USER_EMAIL_DOMAIN = "users.quneitra-media.app";
