@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>سجل مواد القنيطرة</title>
+<meta name="description" content="تسجيل المواد المنتَجة وتصدير تقارير الإنجاز — مديرية إعلام القنيطرة">
+<meta name="theme-color" content="#F6F4EF" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#15161A" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23A9741A'/%3E%3Ctext x='16' y='23' font-size='19' text-anchor='middle' fill='%23F6F4EF' font-family='sans-serif'%3E%D9%82%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="assets/styles.css">
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" defer></script>
+</head>
+<body>
+
+<!-- ============================ الدخول ============================ -->
+<div class="auth" id="screenAuth">
+  <div class="auth-card">
+    <div class="mark lg">ق</div>
+    <h1>سجل مواد القنيطرة</h1>
+    <p class="auth-sub">دائرة الإنتاج — تسجيل المواد وتقارير الإنجاز</p>
+
+    <form id="loginForm" autocomplete="on">
+      <div class="field">
+        <label for="lUser">اسم المستخدم</label>
+        <input type="text" id="lUser" class="ltr" autocomplete="username"
+               autocapitalize="off" spellcheck="false" required>
+      </div>
+      <div class="field">
+        <label for="lPass">كلمة السر</label>
+        <input type="password" id="lPass" class="ltr" autocomplete="current-password" required>
+      </div>
+      <p class="auth-err" id="loginErr" hidden></p>
+      <button class="btn btn-primary" id="loginBtn" type="submit">دخول</button>
+    </form>
+
+    <p class="auth-note" id="authNote">ما عندك حساب؟ الأدمن هو اللي بينشئ الحسابات.</p>
+  </div>
+</div>
+
+<!-- ============================ التطبيق ============================ -->
+<div id="screenApp" hidden>
+
+<header class="top">
+  <div class="shell">
+    <div class="top-in">
+      <div class="mark">ق</div>
+      <div class="brand">
+        <h1>سجل مواد القنيطرة</h1>
+        <p><span id="meName">—</span> <span class="pill" id="meRole" hidden>أدمن</span></p>
+      </div>
+      <button class="icon-btn" id="gearBtn" aria-pressed="false" aria-label="الإعدادات" title="الإعدادات">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+    </div>
+    <div class="strip-wrap">
+      <div class="strip-head"><span id="stripLabel">إنتاج الشهر</span><b id="stripCount">0 مادة</b></div>
+      <div class="strip" id="strip"></div>
+    </div>
+  </div>
+</header>
+
+<main class="shell">
+  <div id="reminderSlot"></div>
+
+  <!-- ---------------------------- تسجيل ---------------------------- -->
+  <section class="view on" id="view-add">
+    <div class="sec">
+      <h2 class="eyebrow" id="addHeading">تسجيل مادة</h2>
+
+      <div class="field" id="onBehalfField" hidden>
+        <label for="fOwner">تُسجَّل باسم</label>
+        <select id="fOwner"></select>
+      </div>
+
+      <div class="field">
+        <label for="dump">لصق سريع <span class="hint">الصق الرابط ونص المنشور مع بعض — بيتفرزوا لحالهم</span></label>
+        <textarea id="dump" rows="3" placeholder="الصق هون اللي نسخته من فيسبوك"></textarea>
+        <div class="suggest-row" id="suggestRow" hidden>
+          <button type="button" class="btn btn-quiet" id="suggestBtn">اقترح عنواناً من النص</button>
+          <span class="suggest-note" id="suggestNote"></span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="fLink">رابط المادة</label>
+        <input type="url" id="fLink" class="ltr" inputmode="url" placeholder="https://www.facebook.com/...">
+      </div>
+
+      <div class="field">
+        <label for="fTitle">عنوان المادة</label>
+        <input type="text" id="fTitle" placeholder="مثال: افتتاح مركز صحي في خان أرنبة">
+      </div>
+
+      <div class="row2">
+        <div class="field">
+          <label for="fDate">تاريخ النشر <span class="hint" id="dateSrc">تاريخ اليوم</span></label>
+          <input type="date" id="fDate">
+          <div class="chips tight" id="dateChips">
+            <button class="chip" type="button" data-day="0">اليوم</button>
+            <button class="chip" type="button" data-day="-1">أمس</button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="fExtra">تصنيف <span class="hint">اختياري</span></label>
+          <input type="text" id="fExtra" placeholder="تقرير · لقاء · تغطية">
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="fNotes">الملاحظات <span class="hint">اختياري</span></label>
+        <textarea id="fNotes" rows="2" placeholder="مدة المادة، الجهة، أي شي بتحب تتذكره"></textarea>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-primary" id="saveBtn">حفظ المادة</button>
+        <button class="btn btn-quiet" id="cancelEdit" hidden>إلغاء</button>
+      </div>
+      <p class="denied" id="addDenied" hidden>ما عندك صلاحية إضافة مواد. راجع الأدمن.</p>
+    </div>
+  </section>
+
+  <!-- ---------------------------- المواد ---------------------------- -->
+  <section class="view" id="view-list">
+    <div class="sec">
+      <h2 class="eyebrow">المواد المسجّلة</h2>
+      <div class="field"><input type="search" id="search" placeholder="ابحث بالعنوان أو الملاحظة أو الرابط"></div>
+      <div class="field" id="listOwnerField" hidden>
+        <label for="listOwner">الموظف</label>
+        <select id="listOwner"></select>
+      </div>
+      <div class="chips" id="listChips">
+        <button class="chip" data-range="month" aria-pressed="true">هذا الشهر</button>
+        <button class="chip" data-range="prev" aria-pressed="false">الشهر الماضي</button>
+        <button class="chip" data-range="all" aria-pressed="false">الكل</button>
+      </div>
+      <div class="list-head"><span id="listRangeLabel"></span><span class="count" id="listCount"></span></div>
+      <ul class="entries" id="entries"></ul>
+    </div>
+  </section>
+
+  <!-- --------------------------- التقارير --------------------------- -->
+  <section class="view" id="view-report">
+    <div class="sec">
+      <h2 class="eyebrow">تقرير فترة</h2>
+      <div class="field" id="reportOwnerField" hidden>
+        <label for="reportOwner">الموظف</label>
+        <select id="reportOwner"></select>
+      </div>
+      <div class="chips" id="reportChips">
+        <button class="chip" data-preset="since" aria-pressed="false">منذ آخر تقرير</button>
+        <button class="chip" data-preset="month" aria-pressed="true">هذا الشهر</button>
+        <button class="chip" data-preset="prev" aria-pressed="false">الشهر الماضي</button>
+        <button class="chip" data-preset="all" aria-pressed="false">كل المواد</button>
+      </div>
+      <div class="row2">
+        <div class="field"><label for="rFrom">من تاريخ</label><input type="date" id="rFrom"></div>
+        <div class="field"><label for="rTo">إلى تاريخ</label><input type="date" id="rTo"></div>
+      </div>
+      <div class="tally">
+        <span class="big" id="rCount">0</span>
+        <span class="lbl">مادة في هذه الفترة<span id="rRangeText"></span></span>
+      </div>
+      <ul class="preview" id="rPreview"></ul>
+      <button class="btn btn-gold" id="exportBtn">تصدير ملف Excel</button>
+      <p class="denied" id="exportDenied" hidden>ما عندك صلاحية التصدير. راجع الأدمن.</p>
+      <div class="note-box">
+        الملف بيطلع بنفس قالب المديرية: الجدول والأعمدة والتعبئة الصفراء واتجاه اليمين لليسار،
+        التواريخ تواريخ حقيقية بيقرأها Excel، الروابط قابلة للنقر، وخانة <code>عدد المواد</code> بتتعبّى لحالها.
+      </div>
+    </div>
+  </section>
+
+  <!-- --------------------------- الحسابات --------------------------- -->
+  <section class="view" id="view-users">
+    <div class="sec">
+      <h2 class="eyebrow">حساب جديد</h2>
+      <form id="newUserForm">
+        <div class="row2">
+          <div class="field"><label for="nName">الاسم الكامل</label>
+            <input type="text" id="nName" required placeholder="كما يُكتب في عمود الأسم"></div>
+          <div class="field"><label for="nUser">اسم المستخدم <span class="hint">إنكليزي</span></label>
+            <input type="text" id="nUser" class="ltr" required autocapitalize="off" spellcheck="false" placeholder="ahmad.h"></div>
+        </div>
+        <div class="field"><label for="nPass">كلمة السر <span class="hint">٨ خانات فأكثر</span></label>
+          <div class="pw-row">
+            <input type="text" id="nPass" class="ltr" required minlength="8">
+            <button type="button" class="btn btn-quiet" id="genPass">ولّد</button>
+          </div>
+        </div>
+        <fieldset class="perms">
+          <legend>الصلاحيات</legend>
+          <label class="perm"><input type="checkbox" id="nAdd" checked><span>يضيف مواد</span></label>
+          <label class="perm"><input type="checkbox" id="nEdit" checked><span>يعدّل ويحذف مواده</span></label>
+          <label class="perm"><input type="checkbox" id="nExport" checked><span>يصدّر تقرير بمواده</span></label>
+          <label class="perm"><input type="checkbox" id="nAdmin"><span>أدمن — يرى ويتحكم بكل شي</span></label>
+        </fieldset>
+        <button class="btn btn-primary" type="submit" id="createUserBtn">إنشاء الحساب</button>
+      </form>
+
+      <h2 class="eyebrow" style="margin-top:26px">الحسابات</h2>
+      <ul class="users" id="usersList"></ul>
+
+      <div class="note-box">
+        الموظف بيشوف موادّه هو فقط — والمنع محسوب داخل قاعدة البيانات، مو بالمتصفّح.
+        حتى لو فتح أدوات المطوّر وعدّل الكود، بيرجعله صفر صفوف.
+      </div>
+    </div>
+  </section>
+
+  <!-- --------------------------- الإعدادات -------------------------- -->
+  <section class="view" id="view-settings">
+    <div class="sec">
+      <h2 class="eyebrow">حسابي</h2>
+      <dl class="kv">
+        <div><dt>الاسم</dt><dd id="sName">—</dd></div>
+        <div><dt>اسم المستخدم</dt><dd id="sUser" class="mono">—</dd></div>
+        <div><dt>الصلاحية</dt><dd id="sRole">—</dd></div>
+        <div><dt>المديرية الفرعية</dt><dd id="sDir">—</dd></div>
+      </dl>
+
+      <h2 class="eyebrow" style="margin-top:24px">تغيير كلمة سري</h2>
+      <form id="pwForm">
+        <div class="field"><label for="pw1">كلمة السر الجديدة</label>
+          <input type="password" id="pw1" class="ltr" minlength="8" required autocomplete="new-password"></div>
+        <div class="field"><label for="pw2">أعدها للتأكيد</label>
+          <input type="password" id="pw2" class="ltr" minlength="8" required autocomplete="new-password"></div>
+        <button class="btn btn-primary" type="submit">حفظ كلمة السر</button>
+      </form>
+
+      <button class="danger" id="logoutBtn">تسجيل خروج</button>
+      <p class="status"><span class="dot ok"></span><span id="connText">متصل بقاعدة البيانات</span></p>
+    </div>
+  </section>
+</main>
+
+<nav class="tabs">
+  <div class="tabs-in" id="tabsIn" role="tablist">
+    <button class="tab" id="tab-add" role="tab" aria-selected="true" data-view="add">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>تسجيل
+    </button>
+    <button class="tab" id="tab-list" role="tab" aria-selected="false" data-view="list">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg>المواد
+    </button>
+    <button class="tab" id="tab-report" role="tab" aria-selected="false" data-view="report">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 14h6M9 17h4"/></svg>التقارير
+    </button>
+    <button class="tab" id="tab-users" role="tab" aria-selected="false" data-view="users" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13A4 4 0 0 1 16 11"/></svg>الحسابات
+    </button>
+  </div>
+</nav>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<noscript><p style="padding:24px;text-align:center">هذا التطبيق بحاجة لتفعيل JavaScript.</p></noscript>
+<script type="module" src="src/app.js"></script>
+</body>
+</html>
