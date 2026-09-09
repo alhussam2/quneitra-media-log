@@ -19,10 +19,14 @@ const EMAIL_DOMAIN = "users.quneitra-media.app";
 const USERNAME_RE = /^[a-z0-9._-]{3,32}$/;
 const MIN_PASSWORD = 8;
 
+// مكتبة supabase-js ترسل apikey و x-client-info مع كل نداء دالة.
+// أي ترويسة غير مذكورة هنا يرفضها المتصفح في طلب الفحص المسبق،
+// فيُلغى الطلب قبل مغادرته الجهاز ولا يصل أي رد ليُقرأ سببه.
 const CORS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Max-Age": "86400",
 };
 
 function json(body: unknown, status = 200) {
