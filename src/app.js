@@ -564,7 +564,11 @@ async function doExport() {
   const from = $("#rFrom").value || rows[0].date;
   const to = $("#rTo").value || rows[rows.length - 1].date;
   const scope = reportScope();
-  const who = isAdmin() ? ownerLabel(state.reportOwner) : state.me.full_name;
+  // خانة «الاسم» في ملخص الإنجاز تحمل اسم شخص دائماً: الموظف المختار،
+  // أو — حين يشمل التقرير الجميع — اسم من يصدّره.
+  const who = (isAdmin() && state.reportOwner !== "_all")
+    ? ownerLabel(state.reportOwner)
+    : state.me.full_name;
 
   try {
     const blob = await buildWorkbook(rows, {
