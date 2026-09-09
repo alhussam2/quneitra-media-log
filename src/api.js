@@ -160,19 +160,39 @@ const FN_ERRORS = {
   invalid_token: "انتهت الجلسة — سجّل دخول من جديد.",
   missing_token: "انتهت الجلسة — سجّل دخول من جديد.",
   missing_service_key: "الدالة ناقصها مفتاح الخدمة — أضف SB_SECRET_KEY في Edge Functions → Secrets.",
+  not_facebook: "هذا مو رابط فيسبوك.",
+  nothing_found: "ما قدرت أقرأ شي من هالرابط — تأكد إنه منشور عام.",
+  not_allowed: "حسابك معطَّل.",
 };
 
-async function callAdminFn(payload) {
-  const { data, error } = await sb.functions.invoke("admin-users", { body: payload });
+async function callFn(name, payload) {
+  const { data, error } = await sb.functions.invoke(name, { body: payload });
   if (error) {
-    // نحاول قراءة رمز الخطأ من جسم الرد لعرض رسالة مفهومة
-    let code = "";
-    try { code = (await error.context?.json())?.error || ""; } catch { /* لا شيء */ }
-    throw new Error(FN_ERRORS[code] || "ما زبطت العملية — جرّب مرة تانية.");
+    // نقرأ جسم الرد لنعرض سبباً حقيقياً بدل «ما زبطت»
+    let code = "", detail = "", status = error.context?.status ?? "";
+    try {
+      const b = await error.context?.json();
+      code = b?.error || "";
+      detail = b?.detail || b?.message || b?.msg || "";
+    } catch { /* الرد ليس JSON */ }
+
+    if (FN_ERRORS[code]) throw new Error(FN_ERRORS[code]);
+
+    // 401 من منصّة Supabase نفسها، قبل أن يصل الطلب إلى الدالة
+    if (String(status) === "401" && !code) {
+      throw new Error('الدالة رفضت الجلسة. أطفئ "Verify JWT with legacy secret" من '
+        + `Edge Functions ← ${name} ← Settings ← Save changes.`);
+    }
+    throw new Error(detail ? `${detail} (${status})` : `ما زبطت العملية (${status || "بلا رد"}).`);
   }
   if (data?.error) throw new Error(FN_ERRORS[data.error] || data.error);
   return data;
 }
+
+const callAdminFn = (payload) => callFn("admin-users", payload);
+
+/** بيانات مادة من رابط فيسبوك: العنوان دائماً، والتاريخ والمدة إن ضُبط توكن الصفحة. */
+export const lookupFacebook = (url) => callFn("fb-lookup", { url });
 
 export const createAccount  = (p) => callAdminFn({ action: "create", ...p });
 export const resetPassword  = (id, password) => callAdminFn({ action: "reset_password", id, password });

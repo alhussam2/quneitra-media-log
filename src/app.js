@@ -351,6 +351,8 @@ function resetForm() {
   $("#cancelEdit").hidden = true;
   $("#suggestRow").hidden = true;
   $("#suggestNote").textContent = "";
+  $("#fetchRow").hidden = true;
+  $("#fetchNote").textContent = "";
   $("#onBehalfField").hidden = !isAdmin();
   if (isAdmin()) $("#fOwner").value = state.me.id;
 }
@@ -379,7 +381,42 @@ function wireForm() {
     $("#suggestNote").textContent = "مسوّدة — رتّبها متل ما بدك.";
   });
 
-  $("#fLink").addEventListener("blur", (e) => { e.target.value = cleanUrl(e.target.value); });
+  const showFetch = () => {
+    const v = $("#fLink").value.trim();
+    $("#fetchRow").hidden = !/facebook\.com|fb\.watch|fb\.me/i.test(v);
+  };
+  $("#fLink").addEventListener("input", showFetch);
+  $("#fLink").addEventListener("blur", (e) => { e.target.value = cleanUrl(e.target.value); showFetch(); });
+
+  $("#fetchBtn").addEventListener("click", async () => {
+    const url = cleanUrl($("#fLink").value);
+    if (!url) return;
+    const btn = $("#fetchBtn"), note = $("#fetchNote");
+    btn.disabled = true;
+    const label = btn.textContent;
+    btn.textContent = "جارٍ القراءة…";
+    note.textContent = "";
+    try {
+      const r = await api.lookupFacebook(url);
+      const got = [];
+
+      if (r.title && !$("#fTitle").value.trim()) { $("#fTitle").value = r.title; got.push("العنوان"); }
+      else if (r.title) { $("#fTitle").value = r.title; got.push("العنوان"); }
+
+      if (r.date) { $("#fDate").value = r.date; state.dateTouched = true; setDateSrc("من فيسبوك"); got.push("التاريخ"); }
+      if (r.duration) { $("#fDur").value = r.duration; got.push("المدة"); }
+
+      note.textContent = got.length
+        ? (r.hasToken ? `جاب ${got.join(" و")}.` : `جاب ${got.join(" و")}. التاريخ والمدة بدهن توكن الصفحة.`)
+        : "ما لقيت بيانات بهالرابط.";
+      if (r.graphError) note.textContent += " (توكن الصفحة ما اشتغل — راجع الأدمن.)";
+    } catch (err) {
+      note.textContent = err.message || "ما زبطت القراءة.";
+    } finally {
+      btn.disabled = false;
+      btn.textContent = label;
+    }
+  });
   $("#fDate").addEventListener("change", () => { state.dateTouched = true; setDateSrc("حدّدته بإيدك"); });
   $("#dateChips").addEventListener("click", (e) => {
     const b = e.target.closest(".chip"); if (!b) return;
