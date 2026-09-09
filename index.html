@@ -7,7 +7,8 @@
 <meta name="description" content="تسجيل المواد المنتَجة وتصدير تقارير الإنجاز — مديرية إعلام القنيطرة">
 <meta name="theme-color" content="#F6F4EF" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#15161A" media="(prefers-color-scheme: dark)">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23A9741A'/%3E%3Ctext x='16' y='23' font-size='19' text-anchor='middle' fill='%23F6F4EF' font-family='sans-serif'%3E%D9%82%3C/text%3E%3C/svg%3E">
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -19,7 +20,7 @@
 <!-- ============================ الدخول ============================ -->
 <div class="auth" id="screenAuth">
   <div class="auth-card">
-    <div class="mark lg">ق</div>
+    <img class="logo-full" src="assets/logo-full.png" alt="مديرية إعلام القنيطرة" width="460" height="429">
     <h1>سجل مواد القنيطرة</h1>
     <p class="auth-sub">دائرة الإنتاج — تسجيل المواد وتقارير الإنجاز</p>
 
@@ -48,11 +49,11 @@
 <header class="top">
   <div class="shell">
     <div class="top-in">
-      <div class="mark">ق</div>
+      <img class="mark" src="assets/logo-mark.png" alt="" width="256" height="256">
       <div class="brand">
         <h1>سجل مواد القنيطرة</h1>
         <p class="by">تطوير المهندس حسام عمر المقداد</p>
-        <p><span id="meName">—</span> <span class="pill" id="meRole" hidden>أدمن</span></p>
+        <p><span class="avatar sm" id="meAvatar"></span><span id="meName">—</span> <span class="pill" id="meRole" hidden>أدمن</span></p>
       </div>
       <button class="icon-btn" id="gearBtn" aria-pressed="false" aria-label="الإعدادات" title="الإعدادات">
         <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -232,6 +233,17 @@
         <div><dt>الصلاحية</dt><dd id="sRole">—</dd></div>
         <div><dt>المديرية الفرعية</dt><dd id="sDir">—</dd></div>
       </dl>
+
+      <h2 class="eyebrow" style="margin-top:24px">صورتي</h2>
+      <div class="avatar-row">
+        <span class="avatar lg" id="myAvatar"></span>
+        <div class="avatar-acts">
+          <label class="btn btn-quiet" for="avatarFile">اختر صورة</label>
+          <input type="file" id="avatarFile" accept="image/*" hidden>
+          <button type="button" class="btn btn-quiet" id="avatarClear">إزالة</button>
+          <p class="avatar-note" id="avatarNote">تُصغَّر إلى 128×128 وتُحفظ مع حسابك.</p>
+        </div>
+      </div>
 
       <h2 class="eyebrow" style="margin-top:24px">تغيير كلمة سري</h2>
       <form id="pwForm">

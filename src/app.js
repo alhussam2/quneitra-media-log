@@ -67,6 +67,49 @@ const hostOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, ""); 
 const URL_RE = /https?:\/\/[^\s؀-ۿ]+/g;
 
 
+
+/* --------------------------- الصورة الشخصية ---------------------------
+   تُصغَّر في المتصفح قبل الرفع إلى مربّع 128 بقصّ من الوسط، فتصل
+   بضعة كيلوبايتات بدل ميغابايتات هاتف. */
+const AVATAR_PX = 128;
+
+function paintAvatar(el, person) {
+  if (!el) return;
+  const src = person?.avatar;
+  if (src) {
+    el.style.backgroundImage = `url("${src}")`;
+    el.textContent = "";
+  } else {
+    el.style.backgroundImage = "";
+    el.textContent = (person?.full_name || "؟").trim().charAt(0);
+  }
+}
+
+function fileToAvatar(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("تعذّرت قراءة الملف"));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("هذا الملف مو صورة"));
+      img.onload = () => {
+        const side = Math.min(img.width, img.height);      // قصّ مربّع من الوسط
+        const cv = document.createElement("canvas");
+        cv.width = cv.height = AVATAR_PX;
+        const ctx = cv.getContext("2d");
+        ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2,
+                      side, side, 0, 0, AVATAR_PX, AVATAR_PX);
+        let out = cv.toDataURL("image/jpeg", 0.82);
+        if (out.length > 110000) out = cv.toDataURL("image/jpeg", 0.6);
+        resolve(out);
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 /* --------------------------- مدة الفيديو ---------------------------
    تُحفظ داخل الملاحظات بصيغة ثابتة، فتظهر في عمود «الملاحظات» بملف
    Excel كما اعتاد المستخدم أن يكتبها بيده. تقبل 13:42 أو ١٣:٤٢ أو
@@ -273,6 +316,7 @@ function renderUsers() {
 
     return `<li class="user${p.active ? "" : " off"}" data-id="${esc(p.id)}" data-username="${esc(p.username)}">
       <div class="user-top">
+        <span class="avatar md" data-av="${esc(p.id)}"></span>
         <b>${esc(p.full_name)}</b>
         ${p.role === "admin" ? '<span class="pill">أدمن</span>' : ""}
         ${p.active ? "" : '<span class="pill muted">معطَّل</span>'}
@@ -289,11 +333,16 @@ function renderUsers() {
         ${p.id === state.me.id ? "" : '<button class="btn btn-quiet warn act-del">حذف</button>'}
       </div></li>`;
   }).join("") || `<div class="empty"><b>ما في حسابات بعد</b>أنشئ حساب الموظف الأول من الفورم فوق.</div>`;
+
+  state.profiles.forEach((p) =>
+    paintAvatar($(`#usersList .avatar[data-av="${CSS.escape(p.id)}"]`), p));
 }
 
 function renderMe() {
   const m = state.me;
   $("#meName").textContent = m.full_name;
+  paintAvatar($("#meAvatar"), m);
+  paintAvatar($("#myAvatar"), m);
   $("#meRole").hidden = m.role !== "admin";
   $("#sName").textContent = m.full_name;
   $("#sUser").textContent = m.username;
@@ -688,6 +737,38 @@ function wireSettings() {
       $("#pwForm").reset();
       toast("انحفظت كلمة السر", "ok");
     } catch (err) { toast(errText(err, "ما زبط التغيير"), "err"); }
+  });
+
+  $("#avatarFile").addEventListener("change", async (ev) => {
+    const file = ev.target.files?.[0];
+    ev.target.value = "";
+    if (!file) return;
+    const note = $("#avatarNote");
+    note.textContent = "جارٍ التصغير…";
+    try {
+      const avatar = await fileToAvatar(file);
+      await api.updateProfile(state.me.id, { avatar });
+      state.me.avatar = avatar;
+      const i = state.profiles.findIndex((p) => p.id === state.me.id);
+      if (i > -1) state.profiles[i] = { ...state.profiles[i], avatar };
+      renderAll();
+      note.textContent = `انحفظت — ${Math.round(avatar.length / 1024)} كيلوبايت.`;
+      toast("انحفظت الصورة", "ok");
+    } catch (err) {
+      note.textContent = err.message || "ما زبطت الصورة.";
+    }
+  });
+
+  $("#avatarClear").addEventListener("click", async () => {
+    if (!state.me.avatar) return;
+    try {
+      await api.updateProfile(state.me.id, { avatar: null });
+      state.me.avatar = null;
+      const i = state.profiles.findIndex((p) => p.id === state.me.id);
+      if (i > -1) state.profiles[i] = { ...state.profiles[i], avatar: null };
+      renderAll();
+      $("#avatarNote").textContent = "انشالت الصورة.";
+    } catch (err) { toast(errText(err, "ما زبط الحذف"), "err"); }
   });
 
   $("#logoutBtn").addEventListener("click", async () => {

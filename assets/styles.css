@@ -85,13 +85,24 @@ a{color:var(--gold-ink)}
 /* ------------------------------ الترويسة ---------------------------- */
 .top{position:sticky;top:0;z-index:20;background:var(--paper);border-bottom:1px solid var(--line)}
 .top-in{display:flex;align-items:center;gap:12px;padding:14px 0 10px}
-.mark{
-  width:34px;height:34px;flex:none;border-radius:8px;
+/* شعار المديرية: النسر وحده في الترويسة — نصّ الشعار يصير خربشة بهذا الحجم */
+.mark{width:38px;height:38px;flex:none;object-fit:contain;display:block}
+.logo-full{display:block;width:150px;height:auto;margin:0 auto 4px}
+
+/* الصورة الشخصية */
+.avatar{
+  flex:none;display:inline-grid;place-items:center;border-radius:50%;
   background:var(--gold-soft);border:1px solid var(--gold-edge);
-  display:grid;place-items:center;line-height:1;
-  font-family:"Reem Kufi",serif;font-weight:700;font-size:17px;color:var(--gold-ink);
+  color:var(--gold-ink);font-family:"Reem Kufi",serif;font-weight:600;
+  background-size:cover;background-position:center;overflow:hidden;
 }
-.mark.lg{width:46px;height:46px;font-size:23px;border-radius:11px;margin:0 auto}
+.avatar.sm{width:18px;height:18px;font-size:9px;margin-inline-end:2px}
+.avatar.md{width:30px;height:30px;font-size:13px}
+.avatar.lg{width:72px;height:72px;font-size:27px}
+.avatar-row{display:flex;gap:14px;align-items:center}
+.avatar-acts{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.avatar-acts .btn{flex:none;cursor:pointer}
+.avatar-note{width:100%;margin:0;font-size:11.5px;color:var(--ink-3);line-height:1.5}
 .brand{flex:1;min-width:0}
 .brand h1{font-family:"Reem Kufi",serif;font-weight:600;font-size:17px;margin:0;letter-spacing:.2px}
 .brand p{margin:0;font-size:11.5px;color:var(--ink-3);display:flex;align-items:center;gap:6px}
