@@ -653,7 +653,10 @@ function wireForm() {
   $("#dump").addEventListener("input", (e) => {
     const txt = e.target.value;
     const urls = txt.match(URL_RE);
-    if (urls && !$("#fLink").value) $("#fLink").value = cleanUrl(urls[0]);
+    if (urls && !$("#fLink").value) {
+      $("#fLink").value = cleanUrl(urls[0]);
+      showFetch(); showOwnDup();     // التعبئة البرمجية لا تُطلق حدث input تلقائياً
+    }
 
     const caption = txt.replace(URL_RE, " ").replace(/\s+/g, " ").trim();
     $("#suggestRow").hidden = caption.length < 20;
@@ -777,9 +780,20 @@ function wireForm() {
       } else {
         const ownerId = isAdmin() ? $("#fOwner").value : state.me.id;
         const owner = state.profiles.find((p) => p.id === ownerId) || state.me;
-        state.entries.push(await api.createEntry(payload, owner));
+        const created = await api.createEntry(payload, owner);
+        state.entries.push(created);
         clearDraft();
-        toast("تسجّلت المادة", "ok");
+        // إن وقع تاريخها خارج الفلتر الحالي، وسّعه إلى «الكل» حتى لا تختفي
+        const r = rangeFor(state.listRange);
+        if (!inRange(created, r.from, r.to)) {
+          state.listRange = "all";
+          $("#listChips").querySelectorAll(".chip")
+            .forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.range === "all")));
+          const d = parseISO(created.date);
+          toast(d ? `تسجّلت — تاريخها ${AR_MONTHS[d.getMonth()]}، عرضتلك كل المواد` : "تسجّلت المادة", "ok");
+        } else {
+          toast("تسجّلت المادة", "ok");
+        }
       }
       sortEntries();
       resetForm();
@@ -877,7 +891,10 @@ function setPreset(kind) {
 }
 
 async function doExport() {
-  const rows = reportRows();
+  const rows = reportRows().slice().sort((a, b) =>
+    a.date === b.date
+      ? String(a.created_at || "").localeCompare(String(b.created_at || ""))
+      : String(a.date).localeCompare(String(b.date)));   // الأقدم أولاً في الملف
   if (!rows.length) return;
 
   const btn = $("#exportBtn");
