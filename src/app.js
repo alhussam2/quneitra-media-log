@@ -184,6 +184,86 @@ function fillOwnerSelect(el, selected) {
   el.value = selected;
 }
 
+
+/* =====================================================================
+   كشف الروابط المكرّرة — للأدمن وحده
+   الموظف يضيف بحرية؛ الأدمن يُنبَّه إذا سجّل موظفان نفس الرابط، ويقرّر
+   لمين المادة بحذف النسخ الزائدة. الكشف محلّي على مواد يراها الأدمن كلها.
+   ===================================================================== */
+function normLink(u) {
+  const s = String(u || "").trim();
+  if (!s) return "";
+  const num = s.match(/(\d{10,})/);            // رقم فيديو فيسبوك
+  if (num) return num[1];
+  const shr = s.match(/\/share\/[a-z]\/([A-Za-z0-9]+)/i);  // رمز مشاركة
+  if (shr) return shr[1].toLowerCase();
+  return s.replace(/^https?:\/\/(www\.)?/i, "").split("?")[0].replace(/\/+$/, "").toLowerCase();
+}
+
+// مجموعات الروابط التي لها أكثر من مادة، الأحدث أولاً
+function duplicateGroups() {
+  const by = new Map();
+  state.entries.forEach((e) => {
+    const k = normLink(e.link);
+    if (!k || !e.link) return;                  // بلا رابط لا يُحتسب تكراراً
+    (by.get(k) || by.set(k, []).get(k)).push(e);
+  });
+  return [...by.values()]
+    .filter((g) => g.length > 1)
+    .sort((a, b) => String(b[0].date).localeCompare(String(a[0].date)));
+}
+
+function renderDupAlert() {
+  const slot = $("#dupSlot");
+  if (!slot) return;
+  if (!isAdmin()) { slot.innerHTML = ""; return; }
+  const groups = duplicateGroups();
+  if (!groups.length) { slot.innerHTML = ""; return; }
+  slot.innerHTML =
+    `<div class="dup-alert" id="dupAlert"><span class="dago">⚠️</span>`
+    + `<span class="datxt"><b>${groups.length === 1 ? "رابط مسجّل أكثر من مرة" : plural(groups.length) + " مسجّلة أكثر من مرة"}</b>`
+    + ` — افتح «المواد» لتقرّر لمين تعود.</span></div>`;
+  $("#dupAlert").addEventListener("click", () => { setView("list"); });
+}
+
+function renderDupPanel() {
+  const panel = $("#dupPanel");
+  if (!panel) return;
+  if (!isAdmin()) { panel.innerHTML = ""; return; }
+  const groups = duplicateGroups();
+  if (!groups.length) { panel.innerHTML = ""; return; }
+
+  panel.innerHTML =
+    `<p class="dup-panel-title">⚠️ روابط مسجّلة أكثر من مرة — احذف النسخة الزائدة لتبقى لموظف واحد</p>`
+    + groups.map((g) => {
+        const host = hostOf(g[0].link) || g[0].link;
+        const copies = g.slice().sort((a, b) => String(a.date).localeCompare(String(b.date))).map((e) =>
+          `<div class="dup-copy" data-id="${esc(e.id)}">`
+          + `<span class="dc-who"><span class="dc-name">${esc(e.name)}</span>`
+          + `<span class="dc-date">${esc(fmtDate(e.date))}</span>`
+          + (e.title ? `<div style="font-size:12px;color:var(--ink-3);overflow-wrap:anywhere">${esc(e.title)}</div>` : "")
+          + `</span>`
+          + `<button class="dc-del" data-del="${esc(e.id)}">احذف هي</button></div>`
+        ).join("");
+        return `<div class="dup-group"><div class="dhead">نفس الرابط `
+          + `<a href="${esc(g[0].link)}" target="_blank" rel="noopener noreferrer">${esc(host)}</a></div>${copies}</div>`;
+      }).join("");
+
+  panel.querySelectorAll("[data-del]").forEach((b) =>
+    b.addEventListener("click", async () => {
+      const id = b.getAttribute("data-del");
+      const e = state.entries.find((x) => x.id === id);
+      if (!e) return;
+      if (!confirm(`تحذف نسخة ${e.name}؟\nبتبقى النسخ التانية لنفس الرابط.`)) return;
+      try {
+        await api.deleteEntry(id);
+        state.entries = state.entries.filter((x) => x.id !== id);
+        renderAll();
+        toast("انحذفت النسخة", "ok");
+      } catch (err) { toast(errText(err, "ما انحذفت"), "err"); }
+    }));
+}
+
 /* =====================================================================
    العرض
    ===================================================================== */
@@ -371,6 +451,7 @@ function renderMe() {
 
 function renderAll() {
   renderMe(); renderStrip(); renderReminder(); renderList(); renderReport(); renderUsers();
+  renderDupAlert(); renderDupPanel();
 }
 
 
@@ -602,30 +683,29 @@ function wireForm() {
     $("#fetchRow").hidden = !/facebook\.com|fb\.watch|fb\.me/i.test(v);
   };
 
-  // فحص التكرار حيّاً عبر كل الفريق، مؤجَّل ليهدأ أثناء الكتابة
-  let dupTimer, lastDup = null;
-  function showDup(info) {
-    lastDup = info;
-    const el = $("#linkDup");
-    if (!info) { el.hidden = true; el.className = "dup-warn"; el.textContent = ""; return; }
-    el.className = "dup-warn";
-    const who = info.is_mine ? "إنت سجّلتها" : `سجّلها ${esc(info.owner_name)}`;
-    el.innerHTML = `<span>⚠️</span><span><b>هالمادة مسجّلة مسبقاً</b> — ${who}`
-      + (info.entry_date ? ` بتاريخ ${esc(fmtDate(info.entry_date))}` : "") + ".</span>";
+  // تكرار ذاتي: هل صاحب المادة (نفسه، أو من يختاره الأدمن) سجّل هذا الرابط سابقاً؟
+  // لا نفحص مواد غيره — تكرار موظفَين شأن الأدمن، لا يمنع الموظف.
+  function ownDuplicate() {
+    if (state.editingId) return null;
+    const link = cleanUrl($("#fLink").value);
+    if (!link) return null;
+    const ownerId = isAdmin() ? $("#fOwner").value : state.me.id;
+    const k = normLink(link);
+    return state.entries.find((e) =>
+      e.owner_id === ownerId && e.link && normLink(e.link) === k) || null;
+  }
+  function showOwnDup() {
+    const el = $("#linkDup"); if (!el) return;
+    const d = ownDuplicate();
+    if (!d) { el.hidden = true; el.textContent = ""; return; }
+    el.innerHTML = `<span>⚠️</span><span><b>سجّلت هالمادة من قبل</b> بتاريخ `
+      + `${esc(fmtDate(d.date))}${d.title ? ` — ${esc(d.title)}` : ""}. تأكّد قبل ما تعيدها.</span>`;
     el.hidden = false;
   }
-  async function checkDup() {
-    const v = cleanUrl($("#fLink").value);
-    if (!v || state.editingId) { showDup(null); return; }
-    const el = $("#linkDup");
-    el.hidden = false; el.className = "dup-warn checking"; el.textContent = "عم أفحص إذا مسجّلة…";
-    try { showDup(await api.checkLink(v)); }
-    catch { showDup(null); }                    // فشل الفحص لا يعطّل التسجيل
-  }
-  const scheduleDupCheck = () => { clearTimeout(dupTimer); dupTimer = setTimeout(checkDup, 500); };
 
-  $("#fLink").addEventListener("input", () => { showFetch(); showDup(null); scheduleDupCheck(); });
-  $("#fLink").addEventListener("blur", (e) => { e.target.value = cleanUrl(e.target.value); showFetch(); checkDup(); });
+  $("#fLink").addEventListener("input", () => { showFetch(); showOwnDup(); });
+  $("#fLink").addEventListener("blur", (e) => { e.target.value = cleanUrl(e.target.value); showFetch(); showOwnDup(); });
+  $("#fOwner").addEventListener("change", showOwnDup);   // الأدمن بدّل صاحب المادة
 
   $("#fetchBtn").addEventListener("click", async () => {
     const url = cleanUrl($("#fLink").value);
@@ -680,13 +760,10 @@ function wireForm() {
     };
 
     if (link && !state.editingId) {
-      let dup = lastDup;
-      try { dup = await api.checkLink(link); } catch {}   // أحدث فحص وقت الحفظ
-      if (dup) {
-        const who = dup.is_mine ? "إنت سجّلتها" : `سجّلها ${dup.owner_name}`;
-        const when = dup.entry_date ? ` بتاريخ ${fmtDate(dup.entry_date)}` : "";
-        if (!confirm(`هالمادة مسجّلة مسبقاً (${who}${when}).\nبدك تسجّلها كمان مرة؟`)) return;
-      }
+      const ownerId = isAdmin() ? $("#fOwner").value : state.me.id;
+      const k = normLink(link);
+      const dup = state.entries.find((e) => e.owner_id === ownerId && e.link && normLink(e.link) === k);
+      if (dup && !confirm(`سجّلت هالمادة من قبل بتاريخ ${fmtDate(dup.date)}.\nبدك تسجّلها كمان مرة؟`)) return;
     }
 
     const btn = $("#saveBtn");
