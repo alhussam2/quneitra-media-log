@@ -27,6 +27,7 @@ const state = {
   reportOwner: "_all",
   reportPreset: "month",
   dateTouched: false,
+  pendingFbId: null,
 };
 
 const isAdmin = () => state.me?.role === "admin";
@@ -195,20 +196,44 @@ function normLink(u) {
   if (!s) return "";
   const num = s.match(/(\d{10,})/);            // رقم فيديو فيسبوك
   if (num) return num[1];
-  const shr = s.match(/\/share\/[a-z]\/([A-Za-z0-9]+)/i);  // رمز مشاركة
+  const shr = s.match(/\/share\/[a-z]\/([A-Za-z0-9]+)/i);  // رمز مشاركة (متغيّر)
   if (shr) return shr[1].toLowerCase();
   return s.replace(/^https?:\/\/(www\.)?/i, "").split("?")[0].replace(/\/+$/, "").toLowerCase();
 }
 
+// مفاتيح التكرار: رقم الفيديو (المخزَّن أو المستخرَج) + الرابط المطبَّع.
+// مادتان مكرّرتان إذا تقاطع أيّ مفتاح — فيُطابَق نفس الفيديو حتى لو
+// اختلف رمز المشاركة، وحتى لو جُلبت إحداهما دون الأخرى.
+function entryKeys(e) {
+  const keys = new Set();
+  if (e.fb_id) keys.add(String(e.fb_id));
+  const link = String(e.link || "");
+  if (link) {
+    const num = link.match(/(\d{10,})/);
+    if (num) keys.add(num[1]);
+    keys.add(normLink(link));
+  }
+  keys.delete("");
+  return keys;
+}
+const keysOverlap = (a, b) => { for (const k of a) if (b.has(k)) return true; return false; };
+
 // مجموعات الروابط التي لها أكثر من مادة، الأحدث أولاً
 function duplicateGroups() {
-  const by = new Map();
-  state.entries.forEach((e) => {
-    const k = normLink(e.link);
-    if (!k || !e.link) return;                  // بلا رابط لا يُحتسب تكراراً
-    (by.get(k) || by.set(k, []).get(k)).push(e);
+  const ents = state.entries.filter((e) => e.link);
+  const parent = ents.map((_, i) => i);
+  const find = (x) => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
+  const union = (a, b) => { parent[find(a)] = find(b); };
+  const firstOf = new Map();                    // مفتاح → أول مادة تحمله، فنوحّدها
+  ents.forEach((e, i) => {
+    for (const k of entryKeys(e)) {
+      if (firstOf.has(k)) union(i, firstOf.get(k));
+      else firstOf.set(k, i);
+    }
   });
-  return [...by.values()]
+  const groups = new Map();
+  ents.forEach((e, i) => { const r = find(i); (groups.get(r) || groups.set(r, []).get(r)).push(e); });
+  return [...groups.values()]
     .filter((g) => g.length > 1)
     .sort((a, b) => String(b[0].date).localeCompare(String(a[0].date)));
 }
@@ -509,6 +534,7 @@ function collectForm() {
     extra: $("#fExtra").value,
     dur: $("#fDur").value,
     notes: $("#fNotes").value,
+    fbId: state.pendingFbId || null,
     at: Date.now(),
   };
 }
@@ -539,6 +565,7 @@ function restoreDraft() {
   $("#fDur").value = d.dur || "";
   $("#fNotes").value = d.notes || "";
   if (d.date) { $("#fDate").value = d.date; }
+  state.pendingFbId = d.fbId || null;
   state.dateTouched = !!d.dateTouched;
   setDateSrc(d.dateTouched ? "من المسودة" : "تاريخ اليوم");
   $("#suggestRow").hidden = (d.dump || "").replace(URL_RE, " ").trim().length < 20;
@@ -627,6 +654,7 @@ const setDateSrc = (t) => { $("#dateSrc").textContent = t; };
 function resetForm() {
   state.editingId = null;
   state.dateTouched = false;
+  state.pendingFbId = null;
   ["#dump", "#fLink", "#fTitle", "#fNotes", "#fExtra", "#fDur"].forEach((s) => { $(s).value = ""; });
   $("#fDate").value = todayISO();
   setDateSrc("تاريخ اليوم");
@@ -693,9 +721,9 @@ function wireForm() {
     const link = cleanUrl($("#fLink").value);
     if (!link) return null;
     const ownerId = isAdmin() ? $("#fOwner").value : state.me.id;
-    const k = normLink(link);
+    const mine = entryKeys({ fb_id: state.pendingFbId, link });
     return state.entries.find((e) =>
-      e.owner_id === ownerId && e.link && normLink(e.link) === k) || null;
+      e.owner_id === ownerId && e.link && keysOverlap(mine, entryKeys(e))) || null;
   }
   function showOwnDup() {
     const el = $("#linkDup"); if (!el) return;
@@ -706,7 +734,7 @@ function wireForm() {
     el.hidden = false;
   }
 
-  $("#fLink").addEventListener("input", () => { showFetch(); showOwnDup(); });
+  $("#fLink").addEventListener("input", () => { state.pendingFbId = null; showFetch(); showOwnDup(); });
   $("#fLink").addEventListener("blur", (e) => { e.target.value = cleanUrl(e.target.value); showFetch(); showOwnDup(); });
   $("#fOwner").addEventListener("change", showOwnDup);   // الأدمن بدّل صاحب المادة
 
@@ -722,8 +750,9 @@ function wireForm() {
       const r = await api.lookupFacebook(url);
       const got = [];
 
-      if (r.title && !$("#fTitle").value.trim()) { $("#fTitle").value = r.title; got.push("العنوان"); }
-      else if (r.title) { $("#fTitle").value = r.title; got.push("العنوان"); }
+      if (r.videoId) state.pendingFbId = String(r.videoId);   // مُعرّف ثابت للتكرار
+
+      if (r.title) { $("#fTitle").value = r.title; got.push("العنوان"); }
 
       if (r.date) { $("#fDate").value = r.date; state.dateTouched = true; setDateSrc("من فيسبوك"); got.push("التاريخ"); }
       if (r.duration) { $("#fDur").value = r.duration; got.push("المدة"); }
@@ -733,6 +762,7 @@ function wireForm() {
         : "ما لقيت بيانات بهالرابط.";
       if (r.graphError) note.textContent += " (توكن الصفحة ما اشتغل.)";
       if (r.fetchError) note.textContent += ` [${r.fetchError}]`;
+      if (typeof showOwnDup === "function") showOwnDup();   // طابِق برقم الفيديو الآن
     } catch (err) {
       note.textContent = err.message || "ما زبطت القراءة.";
     } finally {
@@ -760,12 +790,13 @@ function wireForm() {
       date: $("#fDate").value || todayISO(),
       notes: joinNotes($("#fDur").value, $("#fNotes").value),
       extra: $("#fExtra").value.trim(),
+      fb_id: state.pendingFbId || null,
     };
 
     if (link && !state.editingId) {
       const ownerId = isAdmin() ? $("#fOwner").value : state.me.id;
-      const k = normLink(link);
-      const dup = state.entries.find((e) => e.owner_id === ownerId && e.link && normLink(e.link) === k);
+      const mine = entryKeys({ fb_id: state.pendingFbId, link });
+      const dup = state.entries.find((e) => e.owner_id === ownerId && e.link && keysOverlap(mine, entryKeys(e)));
       if (dup && !confirm(`سجّلت هالمادة من قبل بتاريخ ${fmtDate(dup.date)}.\nبدك تسجّلها كمان مرة؟`)) return;
     }
 
@@ -809,6 +840,7 @@ function wireForm() {
 
     if (ev.target.closest(".act-edit")) {
       state.editingId = e.id;
+      state.pendingFbId = e.fb_id || null;
       $("#fTitle").value = e.title || "";
       $("#fLink").value = e.link || "";
       $("#fDate").value = e.date || todayISO();

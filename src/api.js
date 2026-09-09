@@ -65,6 +65,7 @@ const toEntry = (r) => ({
   link: r.link,
   notes: r.notes,
   extra: r.extra,
+  fb_id: r.fb_id,
   created_at: r.created_at,
 });
 
@@ -89,6 +90,7 @@ export async function createEntry(e, owner) {
     link: e.link,
     notes: e.notes,
     extra: e.extra,
+    fb_id: e.fb_id ?? null,
   }).select().single();
   if (error) throw error;
   return toEntry(data);
