@@ -1,0 +1,18 @@
+{
+  "name": "سجل مواد القنيطرة",
+  "short_name": "سجل القنيطرة",
+  "description": "تسجيل المواد المنتَجة وتصدير تقارير الإنجاز — مديرية إعلام القنيطرة، دائرة الإنتاج",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F6F4EF",
+  "theme_color": "#F6F4EF",
+  "categories": ["productivity", "business"],
+  "icons": [
+    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
