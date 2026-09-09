@@ -1101,6 +1101,27 @@ function wireSettings() {
 
   $("#themeBtn").addEventListener("click", toggleTheme);
 
+  // التذكير اليومي الأصلي — يظهر فقط داخل تطبيق الأندرويد (جسر Reminder)
+  const R = window.Reminder;
+  if (R && R.available && R.available()) {
+    $("#nativeReminder").hidden = false;
+    const tgl = $("#dailyToggle"), timeField = $("#dailyTimeField"), timeInput = $("#dailyTime");
+    const on = !!R.isEnabled();
+    tgl.checked = on;
+    timeField.hidden = !on;
+    const hh = String(R.getHour()).padStart(2, "0"), mm = String(R.getMinute()).padStart(2, "0");
+    timeInput.value = `${hh}:${mm}`;
+    tgl.addEventListener("change", () => {
+      R.setEnabled(tgl.checked);
+      timeField.hidden = !tgl.checked;
+      toast(tgl.checked ? "تمام — رح ذكّرك كل يوم" : "وقّفت التذكير اليومي", "ok");
+    });
+    timeInput.addEventListener("change", () => {
+      const [h, m] = timeInput.value.split(":").map(Number);
+      if (Number.isFinite(h) && Number.isFinite(m)) { R.setTime(h, m); toast("انحفظ وقت التذكير", "ok"); }
+    });
+  }
+
   // مفتاح الإشعار يعكس حالته الفعلية، ويطلب الإذن عند التفعيل
   const nt = $("#notifToggle");
   if (nt) {
