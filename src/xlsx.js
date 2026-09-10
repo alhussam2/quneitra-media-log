@@ -118,7 +118,27 @@ export async function buildWorkbook(rows, meta) {
   return zip.generateAsync({ type: "blob", compression: "DEFLATE" });
 }
 
-export function downloadBlob(blob, filename) {
+const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+function blobToBase64(blob) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onerror = () => rej(r.error || new Error("read failed"));
+    r.onload = () => res(String(r.result).split(",")[1] || "");
+    r.readAsDataURL(blob);
+  });
+}
+
+export async function downloadBlob(blob, filename) {
+  // داخل تطبيق أندرويد: رابط blob لا يقبله مدير التنزيلات، فنمرّر الملف
+  // إلى الجسر الأصلي ليكتبه مباشرة في التنزيلات (بلا صلاحية على أندرويد 10+)
+  const F = window.Files;
+  if (F && F.available && F.available() && F.saveDownload) {
+    const base64 = await blobToBase64(blob);
+    F.saveDownload(filename, base64, XLSX_MIME);
+    return;
+  }
+  // المتصفح والـPWA: تنزيل عادي عبر رابط
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

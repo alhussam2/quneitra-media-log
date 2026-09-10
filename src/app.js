@@ -997,7 +997,7 @@ async function doExport() {
       directorate: state.me.directorate || ORG.directorate,
       section: state.me.section || ORG.section,
     });
-    downloadBlob(blob, `تفريغ-المواد_${from}_${to}.xlsx`);
+    await downloadBlob(blob, `تفريغ-المواد_${from}_${to}.xlsx`);
 
     await api.saveLastReport(state.me.id, scope, from, to, rows.length);
     state.reports[scope] = { from_date: from, to_date: to, item_count: rows.length, exported_at: new Date().toISOString() };
