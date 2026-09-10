@@ -8,7 +8,7 @@
 //  رقم النسخة يُبطل الخبيئة القديمة عند كل نشر. غيّره حين تغيّر أصول القشرة.
 // =====================================================================
 
-const VERSION = "qml-v2";
+const VERSION = "qml-v3";
 const SHELL = [
   "./",
   "./index.html",
@@ -50,29 +50,18 @@ self.addEventListener("fetch", (e) => {
   //   - غير GET (رفع، حذف)         → لا تُخبّأ
   if (req.method !== "GET" || url.origin !== self.location.origin) return;
 
-  // مستندات التنقّل: الشبكة أولاً ليصل أحدث إصدار، والخبيئة شبكة أمان
-  if (req.mode === "navigate") {
-    e.respondWith(
-      fetch(req).then((res) => {
-        const copy = res.clone();
-        caches.open(VERSION).then((c) => c.put("./index.html", copy));
-        return res;
-      }).catch(() => caches.match("./index.html")),
-    );
-    return;
-  }
-
-  // بقية أصول القشرة: خبيئة أولاً للسرعة، مع تحديثها في الخلفية
+  // الشبكة أولاً لكل أصول القشرة: يصل أحدث كود فوراً حين يوجد اتصال،
+  // والخبيئة شبكة أمان عند انقطاعه فقط. فلا تتأخّر الإصلاحات ولا تُخدَّم
+  // نسخة قديمة. مستندات التنقّل ترجع إلى index.html المخبّأ عند الانقطاع.
   e.respondWith(
-    caches.match(req).then((hit) => {
-      const net = fetch(req).then((res) => {
-        if (res.ok) {
-          const copy = res.clone();
-          caches.open(VERSION).then((c) => c.put(req, copy));
-        }
-        return res;
-      }).catch(() => hit);
-      return hit || net;
-    }),
+    fetch(req).then((res) => {
+      if (res.ok) {
+        const copy = res.clone();
+        caches.open(VERSION).then((c) => c.put(req, copy));
+      }
+      return res;
+    }).catch(() =>
+      caches.match(req).then((hit) => hit || (req.mode === "navigate" ? caches.match("./index.html") : Response.error())),
+    ),
   );
 });
