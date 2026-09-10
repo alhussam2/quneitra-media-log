@@ -1103,7 +1103,13 @@ function wireSettings() {
 
   // التذكير اليومي الأصلي — يظهر فقط داخل تطبيق الأندرويد (جسر Reminder)
   const R = window.Reminder;
-  if (R && R.available && R.available()) {
+  const nativeApp = !!(R && R.available && R.available());
+  // مفتاح مسودة الويب لا معنى له داخل التطبيق (التذكير الأصلي بديله) ولا
+  // حين لا يدعم الجهاز إشعارات المتصفح — فنخفيه لتفادي رسالة خطأ محيّرة
+  const dn = $("#draftNotif");
+  if (dn && (nativeApp || !("Notification" in window))) dn.hidden = true;
+
+  if (nativeApp) {
     $("#nativeReminder").hidden = false;
     const tgl = $("#dailyToggle"), timeField = $("#dailyTimeField"), timeInput = $("#dailyTime");
     const on = !!R.isEnabled();
