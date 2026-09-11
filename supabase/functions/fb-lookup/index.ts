@@ -106,45 +106,6 @@ function findDurationDeep(obj: unknown, depth = 0): number | null {
   return null;
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-const BD_DATASET = "gd_lkaxegm826bjpoo9m5";  // Facebook Posts dataset
-
-/** يجلب أول سجل منشور من Bright Data لرابط واحد (يعيد null عند الفشل/المهلة). */
-async function brightData(url: string, token: string): Promise<Record<string, unknown> | null> {
-  const auth = { Authorization: `Bearer ${token}` };
-  // 1) إطلاق المهمة
-  const trig = await fetch(
-    `https://api.brightdata.com/datasets/v3/trigger?dataset_id=${BD_DATASET}&format=json&include_errors=true`,
-    {
-      method: "POST",
-      headers: { ...auth, "Content-Type": "application/json" },
-      body: JSON.stringify([{ url, num_of_posts: 1 }]),
-      signal: AbortSignal.timeout(20_000),
-    },
-  );
-  const tj = await trig.json();
-  const snap = tj?.snapshot_id;
-  if (!snap) throw new Error(tj?.error ? String(tj.error) : "bd_no_snapshot");
-
-  // 2) انتظار الجاهزية (حتى ~90 ثانية)
-  let ready = false;
-  for (let i = 0; i < 30; i++) {
-    await sleep(3000);
-    const pr = await fetch(`https://api.brightdata.com/datasets/v3/progress/${snap}`,
-      { headers: auth, signal: AbortSignal.timeout(15_000) });
-    const pj = await pr.json();
-    if (pj?.status === "ready") { ready = true; break; }
-    if (pj?.status === "failed") throw new Error("bd_failed");
-  }
-  if (!ready) throw new Error("bd_timeout");
-
-  // 3) جلب النتيجة
-  const sr = await fetch(`https://api.brightdata.com/datasets/v3/snapshot/${snap}?format=json`,
-    { headers: auth, signal: AbortSignal.timeout(20_000) });
-  const items = await sr.json();
-  return Array.isArray(items) && items[0] ? items[0] : null;
-}
-
 Deno.serve(async (req) => {
   try {
     if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -252,26 +213,13 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ---- (ب٢) Apify ثم Bright Data: تحويل حسب رصيد Apify المستهلك ----
+    // ---- (ب٢) Apify: تاريخ النشر والمدة حين لا يتوفّر توكن الصفحة ----
     const apifyToken = Deno.env.get("APIFY_TOKEN");
-    const bdToken = Deno.env.get("BRIGHTDATA_TOKEN");
     const month = new Date().toISOString().slice(0, 7);
-    const APIFY_CAP = 4.8;                        // نترك هامشاً قبل حدّ الـ$5
     let apifyError: string | null = null;
     let apifyTried = false;
-    let bdError: string | null = null;
-    let bdTried = false;
     let usedSource: string | null = null;
-
-    // كم استهلك Apify هذا الشهر؟ (المخزَّن يكفي للقرار؛ يعود لصفر مع الشهر الجديد)
-    let apifyUsd = 0;
-    try {
-      const { data: uRow } = await admin.from("apify_usage").select("usd").eq("month", month).maybeSingle();
-      apifyUsd = Number(uRow?.usd ?? 0);
-    } catch { /* لو تعذّر، نعتبره 0 */ }
-    const apifyAvailable = Boolean(apifyToken) && apifyUsd < APIFY_CAP;
-
-    if (!date && apifyAvailable) {
+    if (!date && apifyToken) {
       apifyTried = true;
       try {
         const runUrl = `https://api.apify.com/v2/acts/apify~facebook-posts-scraper/run-sync-get-dataset-items?token=${encodeURIComponent(apifyToken)}`;
@@ -323,42 +271,6 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ---- Bright Data: يُستعمل حين خلص رصيد Apify أو فشل ----
-    if (!date && bdToken) {
-      bdTried = true;
-      try {
-        const bdUrl = canonical || target;      // الرابط القانوني أفضل للكشط
-        const item = await brightData(bdUrl, bdToken);
-        // التقط أسماء الحقول وقيَم التواريخ لأقرأها وأصلّح بدقة (تشخيص مؤقت)
-        try {
-          if (item) {
-            const dbg: Record<string, unknown> = { keys: Object.keys(item) };
-            for (const [k, v] of Object.entries(item)) {
-              if (/date|time|post|publish|length|duration/i.test(k)) dbg[k] = v;
-            }
-            await admin.from("apify_usage").update({ debug: JSON.stringify(dbg).slice(0, 3000) }).eq("month", month);
-          } else {
-            await admin.from("apify_usage").update({ debug: "bd item null for " + bdUrl }).eq("month", month);
-          }
-        } catch { /* تشخيص ثانوي */ }
-        if (item) {
-          const d = findDateDeep(item);
-          if (d) {
-            date = d;
-            usedSource = "brightdata";
-            try { await admin.rpc("bump_bd", { p_month: month }); } catch { /* عدّاد ثانوي */ }
-          }
-          if (!duration) { const sec = findDurationDeep(item); if (sec) duration = fmtDuration(sec); }
-          if (!graphTitle && !pageTitle) {
-            const t = (item.text || item.title || item.caption || item.content || "");
-            if (t) pageTitle = String(t).split("\n")[0].slice(0, 200);
-          }
-        } else { bdError = "bd_empty"; }
-      } catch (e) {
-        bdError = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
-      }
-    }
-
     const title = (graphTitle || pageTitle || "").replace(/\s+/g, " ").trim();
     if (!title && !date && !duration) {
       return json({ error: "nothing_found", detail: fetchError, videoId, canonical }, 404);
@@ -374,11 +286,8 @@ Deno.serve(async (req) => {
       source: graphTitle ? "graph" : (usedSource ?? "page"),
       hasToken: Boolean(token),
       hasApify: Boolean(apifyToken),
-      hasBrightData: Boolean(bdToken),
       apifyTried,
       apifyError,
-      bdTried,
-      bdError,
       graphError,                 // يظهر في الواجهة حين يكون التوكن منتهياً
       fetchError,                 // سبب تعذّر قراءة الصفحة، إن حصل
     });
