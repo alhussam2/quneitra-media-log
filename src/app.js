@@ -792,7 +792,7 @@ function wireForm() {
     const btn = $("#fetchBtn"), note = $("#fetchNote");
     btn.disabled = true;
     const label = btn.textContent;
-    btn.textContent = "جارٍ القراءة…";
+    btn.textContent = "جارٍ القراءة… (لحظات)";
     note.textContent = "";
     try {
       const r = await api.lookupFacebook(url);
@@ -806,7 +806,7 @@ function wireForm() {
       if (r.duration) { $("#fDur").value = r.duration; got.push("المدة"); }
 
       note.textContent = got.length
-        ? (r.hasToken ? `جاب ${got.join(" و")}.` : `جاب ${got.join(" و")}. التاريخ والمدة بدهن توكن الصفحة.`)
+        ? `جاب ${got.join(" و")}${r.source === "apify" ? " (عبر Apify)" : ""}.`
         : "ما لقيت بيانات بهالرابط.";
       if (r.graphError) note.textContent += " (توكن الصفحة ما اشتغل.)";
       if (r.fetchError) note.textContent += ` [${r.fetchError}]`;

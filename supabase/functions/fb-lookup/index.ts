@@ -54,6 +54,55 @@ function meta(htmlText: string, prop: string): string | null {
     .trim();
 }
 
+/** يحوّل قيمة زمنية (ISO أو epoch ثوانٍ/مِلّي) إلى YYYY-MM-DD ضمن نطاق معقول. */
+function toDate(v: unknown): string | null {
+  if (v == null) return null;
+  let ms: number | null = null;
+  if (typeof v === "number") ms = v < 1e12 ? v * 1000 : v;          // ثوانٍ أو ملّي
+  else if (/^\d{9,13}$/.test(String(v))) { const n = +v; ms = n < 1e12 ? n * 1000 : n; }
+  else { const t = Date.parse(String(v)); if (!Number.isNaN(t)) ms = t; }
+  if (ms == null) return null;
+  const d = new Date(ms);
+  const y = d.getUTCFullYear();
+  if (y < 2010 || y > 2035) return null;                            // نتجاهل قيَماً غير منطقية
+  return d.toISOString().slice(0, 10);
+}
+
+/** يبحث في كائن Apify عن أوّل حقل تاريخ نشر معقول (بلا اعتماد على اسم واحد). */
+function findDateDeep(obj: unknown, depth = 0): string | null {
+  if (!obj || typeof obj !== "object" || depth > 4) return null;
+  const rec = obj as Record<string, unknown>;
+  // نفضّل المفاتيح الأوضح أولاً
+  const preferred = ["time", "timestamp", "date", "publishedTime", "publish_time",
+                     "publishTime", "createdTime", "created_time", "creation_time", "publishedAt"];
+  for (const k of preferred) {
+    if (k in rec) { const d = toDate(rec[k]); if (d) return d; }
+  }
+  for (const [k, v] of Object.entries(rec)) {
+    if (/time|date|publish|created/i.test(k)) { const d = toDate(v); if (d) return d; }
+  }
+  for (const v of Object.values(rec)) {
+    if (v && typeof v === "object") { const d = findDateDeep(v, depth + 1); if (d) return d; }
+  }
+  return null;
+}
+
+/** يبحث عن مدة الفيديو بالثواني إن وُجدت. */
+function findDurationDeep(obj: unknown, depth = 0): number | null {
+  if (!obj || typeof obj !== "object" || depth > 4) return null;
+  const rec = obj as Record<string, unknown>;
+  for (const [k, v] of Object.entries(rec)) {
+    if (/duration|length/i.test(k)) {
+      const n = typeof v === "number" ? v : (/^\d+(\.\d+)?$/.test(String(v)) ? +v : NaN);
+      if (Number.isFinite(n) && n > 0 && n < 86400) return n > 1000 ? n / 1000 : n; // ملّي→ثانية
+    }
+  }
+  for (const v of Object.values(rec)) {
+    if (v && typeof v === "object") { const d = findDurationDeep(v, depth + 1); if (d) return d; }
+  }
+  return null;
+}
+
 Deno.serve(async (req) => {
   try {
     if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -139,6 +188,45 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ---- (ب٢) Apify: تاريخ النشر حين لا يتوفّر توكن الصفحة ----
+    const apifyToken = Deno.env.get("APIFY_TOKEN");
+    let apifyError: string | null = null;
+    let apifyTried = false;
+    if (!date && apifyToken) {
+      apifyTried = true;
+      try {
+        const runUrl = `https://api.apify.com/v2/acts/apify~facebook-posts-scraper/run-sync-get-dataset-items?token=${encodeURIComponent(apifyToken)}`;
+        const res = await fetch(runUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ startUrls: [{ url: target }], resultsLimit: 1 }),
+          signal: AbortSignal.timeout(110_000),   // تشغيل المتصفح قد يأخذ لحظات
+        });
+        if (!res.ok) {
+          apifyError = `apify ${res.status}`;
+        } else {
+          const items = await res.json();
+          const item = Array.isArray(items) ? items[0] : null;
+          if (item) {
+            const d = findDateDeep(item);
+            if (d) date = d;
+            if (!duration) {
+              const sec = findDurationDeep(item);
+              if (sec) duration = fmtDuration(sec);
+            }
+            if (!graphTitle && !pageTitle) {
+              const t = (item.text || item.title || item.caption || "");
+              if (t) pageTitle = String(t).split("\n")[0].slice(0, 200);
+            }
+          } else {
+            apifyError = "apify_empty";
+          }
+        }
+      } catch (e) {
+        apifyError = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+      }
+    }
+
     const title = (graphTitle || pageTitle || "").replace(/\s+/g, " ").trim();
     if (!title && !date && !duration) {
       return json({ error: "nothing_found", detail: fetchError, videoId, canonical }, 404);
@@ -151,8 +239,11 @@ Deno.serve(async (req) => {
       duration,                   // null ما لم يُضبط FB_PAGE_TOKEN
       videoId,
       canonical,
-      source: graphTitle ? "graph" : "page",
+      source: date ? (graphTitle ? "graph" : (apifyTried ? "apify" : "page")) : "page",
       hasToken: Boolean(token),
+      hasApify: Boolean(apifyToken),
+      apifyTried,
+      apifyError,
       graphError,                 // يظهر في الواجهة حين يكون التوكن منتهياً
       fetchError,                 // سبب تعذّر قراءة الصفحة، إن حصل
     });
