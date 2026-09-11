@@ -72,14 +72,17 @@ function toDate(v: unknown): string | null {
 function findDateDeep(obj: unknown, depth = 0): string | null {
   if (!obj || typeof obj !== "object" || depth > 4) return null;
   const rec = obj as Record<string, unknown>;
-  // نفضّل المفاتيح الأوضح أولاً
-  const preferred = ["time", "timestamp", "date", "publishedTime", "publish_time",
-                     "publishTime", "createdTime", "created_time", "creation_time", "publishedAt"];
+  // نفضّل تاريخ النشر الصريح أولاً (date_posted لـBright Data، time لـApify)
+  const preferred = ["date_posted", "datePosted", "post_date", "posted_at", "published_at",
+                     "publishedTime", "publish_time", "publishTime", "created_time", "creation_time",
+                     "publishedAt", "createdTime", "time", "timestamp", "date"];
   for (const k of preferred) {
     if (k in rec) { const d = toDate(rec[k]); if (d) return d; }
   }
+  // بحث عام، مع تجاهل حقول وقت الكشط/الجلب لا النشر
   for (const [k, v] of Object.entries(rec)) {
-    if (/time|date|publish|created/i.test(k)) { const d = toDate(v); if (d) return d; }
+    if (/scrap|crawl|collect|fetch|snapshot|retriev|updated|modified|access|warc/i.test(k)) continue;
+    if (/time|date|publish|created|posted/i.test(k)) { const d = toDate(v); if (d) return d; }
   }
   for (const v of Object.values(rec)) {
     if (v && typeof v === "object") { const d = findDateDeep(v, depth + 1); if (d) return d; }
