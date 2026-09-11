@@ -327,7 +327,20 @@ Deno.serve(async (req) => {
     if (!date && bdToken) {
       bdTried = true;
       try {
-        const item = await brightData(target, bdToken);
+        const bdUrl = canonical || target;      // الرابط القانوني أفضل للكشط
+        const item = await brightData(bdUrl, bdToken);
+        // التقط أسماء الحقول وقيَم التواريخ لأقرأها وأصلّح بدقة (تشخيص مؤقت)
+        try {
+          if (item) {
+            const dbg: Record<string, unknown> = { keys: Object.keys(item) };
+            for (const [k, v] of Object.entries(item)) {
+              if (/date|time|post|publish|length|duration/i.test(k)) dbg[k] = v;
+            }
+            await admin.from("apify_usage").update({ debug: JSON.stringify(dbg).slice(0, 3000) }).eq("month", month);
+          } else {
+            await admin.from("apify_usage").update({ debug: "bd item null for " + bdUrl }).eq("month", month);
+          }
+        } catch { /* تشخيص ثانوي */ }
         if (item) {
           const d = findDateDeep(item);
           if (d) {
