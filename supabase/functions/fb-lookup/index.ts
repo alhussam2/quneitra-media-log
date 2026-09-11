@@ -125,8 +125,30 @@ Deno.serve(async (req) => {
       .from("profiles").select("active").eq("id", caller.user.id).maybeSingle();
     if (!me?.active) return json({ error: "not_allowed" }, 403);
 
-    let body: { url?: string };
+    let body: { url?: string; usage?: boolean };
     try { body = await req.json(); } catch { return json({ error: "bad_json" }, 400); }
+
+    // ---- الاستخدام الحقيقي من Apify (للأدمن فقط) ----
+    if (body.usage === true) {
+      const { data: prof } = await admin
+        .from("profiles").select("role").eq("id", caller.user.id).maybeSingle();
+      if (prof?.role !== "admin") return json({ error: "not_admin" }, 403);
+      const tok = Deno.env.get("APIFY_TOKEN");
+      if (!tok) return json({ ok: true, usageUsd: null, noToken: true });
+      try {
+        const r = await fetch(
+          `https://api.apify.com/v2/users/me/usage/monthly?token=${encodeURIComponent(tok)}`,
+          { signal: AbortSignal.timeout(15_000) },
+        );
+        const j = await r.json();
+        const d = j?.data ?? {};
+        const used = Number(d.totalUsageCreditsUsdAfterVolumeDiscount
+          ?? d.totalUsageCreditsUsdBeforeVolumeDiscount ?? 0);
+        return json({ ok: true, usageUsd: used });
+      } catch (e) {
+        return json({ ok: true, usageUsd: null, apifyError: e instanceof Error ? e.message : String(e) });
+      }
+    }
 
     const target = String(body.url ?? "").trim();
     if (!/^https?:\/\/([a-z0-9-]+\.)*(facebook\.com|fb\.watch|fb\.me)\//i.test(target)) {

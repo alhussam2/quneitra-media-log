@@ -501,11 +501,17 @@ async function renderApifyUsage() {
     const [y, m] = u.month.split("-");
     $("#apifyMonth").textContent = `${AR_MONTHS[+m - 1]} ${y}`;
     $("#apifyCalls").textContent = `${u.calls} نداء`;
-    const cost = (u.calls * 0.002).toFixed(2);           // ~$2/1000 نداء
-    const near = u.calls >= 2000;
-    $("#apifyCost").textContent =
-      `≈ $${cost} من $5 المجاني${near ? " — قرّبت من الحد، راقب Apify" : ""}`;
-    $("#apifyCost").style.color = near ? "var(--red)" : "var(--ink-3)";
+    $("#apifyCost").textContent = "جارٍ جلب التكلفة الحقيقية…";
+    $("#apifyCost").style.color = "var(--ink-3)";
+    const usd = await api.apifyRealUsage();      // الرقم الحقيقي من Apify
+    if (usd != null) {
+      const near = usd >= 4;
+      $("#apifyCost").textContent =
+        `التكلفة الفعلية: $${usd.toFixed(2)} من $5 المجاني${near ? " — قرّبت من الحد!" : ""}`;
+      $("#apifyCost").style.color = near ? "var(--red)" : "var(--ink-3)";
+    } else {
+      $("#apifyCost").textContent = "التكلفة الفعلية على لوحة Apify (ما قدرت أجيبها الآن).";
+    }
   } catch { box.hidden = true; }
 }
 

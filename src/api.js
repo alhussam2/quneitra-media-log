@@ -138,12 +138,19 @@ export async function saveLastReport(userId, scope, from, to, count) {
   if (error) throw error;
 }
 
-/** عدد نداءات Apify لهذا الشهر (للأدمن). */
+/** عدد نداءات Apify لهذا الشهر (من عدّادنا). */
 export async function apifyUsage() {
   const month = new Date().toISOString().slice(0, 7);
   const { data, error } = await sb.from("apify_usage").select("calls").eq("month", month).maybeSingle();
   if (error) throw error;
   return { month, calls: data?.calls || 0 };
+}
+
+/** التكلفة الحقيقية للشهر من حساب Apify مباشرة (للأدمن). */
+export async function apifyRealUsage() {
+  const { data, error } = await sb.functions.invoke("fb-lookup", { body: { usage: true } });
+  if (error) return null;
+  return (data && typeof data.usageUsd === "number") ? data.usageUsd : null;
 }
 
 // ---------------------------------------------------------------------
