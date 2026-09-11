@@ -491,6 +491,24 @@ function renderUsers() {
     paintAvatar($(`#usersList .avatar[data-av="${CSS.escape(p.id)}"]`), p));
 }
 
+async function renderApifyUsage() {
+  const box = $("#apifyBox");
+  if (!box) return;
+  if (!isAdmin()) { box.hidden = true; return; }
+  try {
+    const u = await api.apifyUsage();
+    box.hidden = false;
+    const [y, m] = u.month.split("-");
+    $("#apifyMonth").textContent = `${AR_MONTHS[+m - 1]} ${y}`;
+    $("#apifyCalls").textContent = `${u.calls} نداء`;
+    const cost = (u.calls * 0.002).toFixed(2);           // ~$2/1000 نداء
+    const near = u.calls >= 2000;
+    $("#apifyCost").textContent =
+      `≈ $${cost} من $5 المجاني${near ? " — قرّبت من الحد، راقب Apify" : ""}`;
+    $("#apifyCost").style.color = near ? "var(--red)" : "var(--ink-3)";
+  } catch { box.hidden = true; }
+}
+
 function renderMe() {
   const m = state.me;
   $("#meName").textContent = m.full_name;
@@ -1099,8 +1117,11 @@ function wireUsers() {
    الإعدادات والخروج
    ===================================================================== */
 function wireSettings() {
-  $("#gearBtn").addEventListener("click", () =>
-    setView($("#view-settings").classList.contains("on") ? "add" : "settings"));
+  $("#gearBtn").addEventListener("click", () => {
+    const toSettings = !$("#view-settings").classList.contains("on");
+    setView(toSettings ? "settings" : "add");
+    if (toSettings) renderApifyUsage();
+  });
 
   $("#themeBtn").addEventListener("click", toggleTheme);
 

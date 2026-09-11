@@ -138,6 +138,14 @@ export async function saveLastReport(userId, scope, from, to, count) {
   if (error) throw error;
 }
 
+/** عدد نداءات Apify لهذا الشهر (للأدمن). */
+export async function apifyUsage() {
+  const month = new Date().toISOString().slice(0, 7);
+  const { data, error } = await sb.from("apify_usage").select("calls").eq("month", month).maybeSingle();
+  if (error) throw error;
+  return { month, calls: data?.calls || 0 };
+}
+
 // ---------------------------------------------------------------------
 //  الحسابات — للأدمن. غير الأدمن يستقبل صفّه هو فقط، بحكم RLS.
 // ---------------------------------------------------------------------

@@ -210,6 +210,11 @@ Deno.serve(async (req) => {
           if (item) {
             const d = findDateDeep(item);
             if (d) date = d;
+            // سجّل نداء Apify الناجح في عدّاد الشهر (لا يوقف الرد لو فشل)
+            try {
+              const month = new Date().toISOString().slice(0, 7);
+              await admin.rpc("bump_apify", { p_month: month });
+            } catch { /* العدّاد ثانوي */ }
             if (!duration) {
               const sec = findDurationDeep(item);
               if (sec) duration = fmtDuration(sec);
