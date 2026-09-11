@@ -232,10 +232,23 @@ Deno.serve(async (req) => {
           if (item) {
             const d = findDateDeep(item);
             if (d) date = d;
-            // سجّل نداء Apify الناجح في عدّاد الشهر (لا يوقف الرد لو فشل)
+            // سجّل النداء، ثم خزّن التكلفة الحقيقية من Apify (كلاهما ثانوي)
             try {
               const month = new Date().toISOString().slice(0, 7);
               await admin.rpc("bump_apify", { p_month: month });
+              try {
+                const ur = await fetch(
+                  `https://api.apify.com/v2/users/me/usage/monthly?token=${encodeURIComponent(apifyToken)}`,
+                  { signal: AbortSignal.timeout(10_000) },
+                );
+                const uj = await ur.json();
+                const ud = uj?.data ?? {};
+                const usd = Number(ud.totalUsageCreditsUsdAfterVolumeDiscount
+                  ?? ud.totalUsageCreditsUsdBeforeVolumeDiscount ?? NaN);
+                if (Number.isFinite(usd)) {
+                  await admin.from("apify_usage").update({ usd }).eq("month", month);
+                }
+              } catch { /* التكلفة تُحدَّث لاحقاً */ }
             } catch { /* العدّاد ثانوي */ }
             if (!duration) {
               const sec = findDurationDeep(item);
