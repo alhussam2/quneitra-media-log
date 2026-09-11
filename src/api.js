@@ -141,9 +141,9 @@ export async function saveLastReport(userId, scope, from, to, count) {
 /** عدد نداءات Apify لهذا الشهر (من عدّادنا). */
 export async function apifyUsage() {
   const month = new Date().toISOString().slice(0, 7);
-  const { data, error } = await sb.from("apify_usage").select("calls").eq("month", month).maybeSingle();
+  const { data, error } = await sb.from("apify_usage").select("calls, bd_calls").eq("month", month).maybeSingle();
   if (error) throw error;
-  return { month, calls: data?.calls || 0 };
+  return { month, calls: data?.calls || 0, bdCalls: data?.bd_calls || 0 };
 }
 
 /** التكلفة الحقيقية للشهر من حساب Apify مباشرة (للأدمن). */

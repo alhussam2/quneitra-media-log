@@ -500,7 +500,7 @@ async function renderApifyUsage() {
     box.hidden = false;
     const [y, m] = u.month.split("-");
     $("#apifyMonth").textContent = `${AR_MONTHS[+m - 1]} ${y}`;
-    $("#apifyCalls").textContent = `${u.calls} نداء`;
+    $("#apifyCalls").textContent = `Apify: ${u.calls}${u.bdCalls ? ` · Bright Data: ${u.bdCalls}` : ""}`;
     $("#apifyCost").textContent = "جارٍ جلب التكلفة الحقيقية…";
     $("#apifyCost").style.color = "var(--ink-3)";
     const usd = await api.apifyRealUsage();      // الرقم الحقيقي من Apify
@@ -829,9 +829,9 @@ function wireForm() {
       if (r.date) { $("#fDate").value = r.date; state.dateTouched = true; setDateSrc("من فيسبوك"); got.push("التاريخ"); }
       if (r.duration) { $("#fDur").value = r.duration; got.push("المدة"); }
 
-      note.textContent = got.length
-        ? `جاب ${got.join(" و")}${r.source === "apify" ? " (عبر Apify)" : ""}.`
-        : "ما لقيت بيانات بهالرابط.";
+      const via = r.source === "apify" ? " (عبر Apify)"
+        : r.source === "brightdata" ? " (عبر Bright Data)" : "";
+      note.textContent = got.length ? `جاب ${got.join(" و")}${via}.` : "ما لقيت بيانات بهالرابط.";
       if (r.graphError) note.textContent += " (توكن الصفحة ما اشتغل.)";
       if (r.fetchError) note.textContent += ` [${r.fetchError}]`;
       if (typeof showOwnDup === "function") showOwnDup();   // طابِق برقم الفيديو الآن
