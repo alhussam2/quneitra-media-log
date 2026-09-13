@@ -353,10 +353,9 @@ function renderStrip() {
   for (let i = 1; i <= days; i++) {
     const d = from.slice(0, 8) + String(i).padStart(2, "0");
     const c = counts[d] || 0;
-    const tip = `${i} ${esc(label)} — ${plural(c)}${d === t ? " · اليوم" : ""}${c ? " (اضغط للعرض)" : ""}`;
-    // المربّعات التي فيها مواد قابلة للنقر: تفتح قائمة مواد ذاك اليوم
-    const tap = c ? ` role="button" tabindex="0" data-date="${d}"` : "";
-    h += `<span class="day${c ? " has" : ""}${d === t ? " today" : ""}"${tap} title="${tip}"></span>`;
+    const tip = `${i} ${esc(label)} — ${plural(c)}${d === t ? " · اليوم" : ""} (اضغط للعرض)`;
+    // كل الأيام قابلة للنقر — الملوّن يعرض مواده، والفارغ يعرض «ما في مواد»
+    h += `<span class="day${c ? " has" : ""}${d === t ? " today" : ""}" role="button" tabindex="0" data-date="${d}" title="${tip}">${i}</span>`;
   }
   $("#strip").innerHTML = h;
   $("#stripLabel").textContent = `إنتاج ${label}`;
@@ -443,7 +442,7 @@ function renderList() {
   $("#listCount").textContent = plural(rows.length);
   $("#entries").innerHTML = rows.length
     ? rows.map(entryHTML).join("")
-    : `<div class="empty"><b>${q ? "ما في نتيجة" : "ما في مواد بهالفترة"}</b>${q ? "جرّب كلمة تانية." : "سجّل أول مادة من تبويب «تسجيل»."}</div>`;
+    : `<div class="empty"><b>${q ? "ما في نتيجة" : (state.dayFilter ? "ما في مواد بهاليوم" : "ما في مواد بهالفترة")}</b>${q ? "جرّب كلمة تانية." : (state.dayFilter ? "ما سجّلت شي بهذا اليوم." : "سجّل أول مادة من تبويب «تسجيل».")}</div>`;
 }
 
 const reportRows = () =>
@@ -974,9 +973,9 @@ function wireListAndReport() {
     setView("list");
     renderList();
   }
-  $("#strip").addEventListener("click", (e) => openDay(e.target.closest(".day.has")));
+  $("#strip").addEventListener("click", (e) => openDay(e.target.closest(".day")));
   $("#strip").addEventListener("keydown", (e) => {
-    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openDay(e.target.closest(".day.has")); }
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openDay(e.target.closest(".day")); }
   });
   $("#dayFilterClear").addEventListener("click", () => { state.dayFilter = null; renderList(); });
 

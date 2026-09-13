@@ -8,7 +8,7 @@
   --paper:#F6F4EF; --surface:#FFFFFF; --surface-2:#EFEBE2;
   --ink:#1A1C1B; --ink-2:#5E6159; --ink-3:#8A8C82;
   --line:#DEDACE; --line-strong:#C7C1B1;
-  --gold:#A9741A; --gold-ink:#7A5210; --gold-soft:#F3E6C4; --gold-edge:#E0CB96;
+  --gold:#A9741A;--on-gold:#FFFFFF; --gold-ink:#7A5210; --gold-soft:#F3E6C4; --gold-edge:#E0CB96;
   --on-gold:#FFFFFF;
   --green:#3D7A55; --green-soft:#E2EFE6;
   --red:#A43A34; --red-soft:#F6E4E2;
@@ -21,7 +21,7 @@
     --paper:#15161A; --surface:#1D1F24; --surface-2:#25272D;
     --ink:#EDEAE1; --ink-2:#A3A399; --ink-3:#7A7A72;
     --line:#2E3037; --line-strong:#3D3F47;
-    --gold:#E0AE4E; --gold-ink:#F0C878; --gold-soft:#3A2E15; --gold-edge:#5A4720;
+    --gold:#E0AE4E;--on-gold:#2A2205; --gold-ink:#F0C878; --gold-soft:#3A2E15; --gold-edge:#5A4720;
     --on-gold:#1A1508;
     --green:#6FB98A; --green-soft:#1E2C24;
     --red:#E08078; --red-soft:#2E1E1C;
@@ -33,7 +33,7 @@
   --paper:#15161A; --surface:#1D1F24; --surface-2:#25272D;
   --ink:#EDEAE1; --ink-2:#A3A399; --ink-3:#7A7A72;
   --line:#2E3037; --line-strong:#3D3F47;
-  --gold:#E0AE4E; --gold-ink:#F0C878; --gold-soft:#3A2E15; --gold-edge:#5A4720;
+  --gold:#E0AE4E;--on-gold:#2A2205; --gold-ink:#F0C878; --gold-soft:#3A2E15; --gold-edge:#5A4720;
   --on-gold:#1A1508;
   --green:#6FB98A; --green-soft:#1E2C24;
   --red:#E08078; --red-soft:#2E1E1C;
@@ -130,13 +130,12 @@ a{color:var(--gold-ink)}
 .strip-wrap{padding:0 0 12px}
 .strip-head{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;letter-spacing:.6px;color:var(--ink-3);margin-bottom:6px}
 .strip-head b{font-family:"IBM Plex Mono",monospace;font-weight:500;color:var(--ink-2);font-size:11.5px}
-.strip{display:flex;gap:2px;align-items:flex-end;height:22px;overflow-x:auto;scrollbar-width:none}
-.strip::-webkit-scrollbar{display:none}
-.day{flex:1 1 0;min-width:5px;height:9px;border-radius:2px;background:var(--surface-2);border:1px solid transparent;padding:0;transition:transform .08s ease,filter .12s ease}
-.day.has{background:var(--gold);height:22px;cursor:pointer}
-.day.has:hover{filter:brightness(1.08);transform:translateY(-1px)}
-.day.has:active{transform:translateY(0)}
-.day.has:focus-visible{outline:2px solid var(--ink-2);outline-offset:1px}
+.strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(26px,1fr));gap:3px}
+.day{aspect-ratio:1;min-width:0;display:flex;align-items:center;justify-content:center;font:600 11px/1 "IBM Plex Mono",monospace;color:var(--ink-3);background:var(--surface-2);border:1px solid transparent;border-radius:5px;cursor:pointer;transition:transform .08s ease,filter .12s ease}
+.day:hover{filter:brightness(1.06);transform:translateY(-1px)}
+.day:active{transform:translateY(0)}
+.day:focus-visible{outline:2px solid var(--ink-2);outline-offset:1px}
+.day.has{background:var(--gold);color:var(--on-gold)}
 .day.today{border-color:var(--ink-2);box-shadow:inset 0 0 0 1px var(--ink-2)}
 /* لافتة تصفية يوم واحد فوق قائمة المواد */
 .dayfilter{display:none;align-items:center;gap:8px;margin:2px 0 10px;padding:8px 12px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;font-size:13px;color:var(--ink-2)}
