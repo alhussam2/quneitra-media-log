@@ -8,7 +8,7 @@
 //  رقم النسخة يُبطل الخبيئة القديمة عند كل نشر. غيّره حين تغيّر أصول القشرة.
 // =====================================================================
 
-const VERSION = "qml-v7";
+const VERSION = "qml-v8";
 const SHELL = [
   "./",
   "./index.html",
@@ -54,7 +54,9 @@ self.addEventListener("fetch", (e) => {
   // والخبيئة شبكة أمان عند انقطاعه فقط. فلا تتأخّر الإصلاحات ولا تُخدَّم
   // نسخة قديمة. مستندات التنقّل ترجع إلى index.html المخبّأ عند الانقطاع.
   e.respondWith(
-    fetch(req).then((res) => {
+    // no-store: نتجاوز كاش المتصفح (WebView) تحتنا، فلا تصل نسخة قديمة
+    // من الأصول بسبب max-age من GitHub Pages؛ نبقى نحفظ نسخة للعمل دون اتصال
+    fetch(req, { cache: "no-store" }).then((res) => {
       if (res.ok) {
         const copy = res.clone();
         caches.open(VERSION).then((c) => c.put(req, copy));
