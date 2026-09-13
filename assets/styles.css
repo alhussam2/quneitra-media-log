@@ -132,9 +132,18 @@ a{color:var(--gold-ink)}
 .strip-head b{font-family:"IBM Plex Mono",monospace;font-weight:500;color:var(--ink-2);font-size:11.5px}
 .strip{display:flex;gap:2px;align-items:flex-end;height:22px;overflow-x:auto;scrollbar-width:none}
 .strip::-webkit-scrollbar{display:none}
-.day{flex:1 1 0;min-width:5px;height:9px;border-radius:2px;background:var(--surface-2);border:1px solid transparent}
-.day.has{background:var(--gold);height:22px}
-.day.today{border-color:var(--ink-2)}
+.day{flex:1 1 0;min-width:5px;height:9px;border-radius:2px;background:var(--surface-2);border:1px solid transparent;padding:0;transition:transform .08s ease,filter .12s ease}
+.day.has{background:var(--gold);height:22px;cursor:pointer}
+.day.has:hover{filter:brightness(1.08);transform:translateY(-1px)}
+.day.has:active{transform:translateY(0)}
+.day.has:focus-visible{outline:2px solid var(--ink-2);outline-offset:1px}
+.day.today{border-color:var(--ink-2);box-shadow:inset 0 0 0 1px var(--ink-2)}
+/* لافتة تصفية يوم واحد فوق قائمة المواد */
+.dayfilter{display:none;align-items:center;gap:8px;margin:2px 0 10px;padding:8px 12px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;font-size:13px;color:var(--ink-2)}
+.dayfilter.on{display:flex}
+.dayfilter b{color:var(--ink-1)}
+.dayfilter .x{margin-inline-start:auto;cursor:pointer;border:none;background:transparent;color:var(--ink-3);font-size:18px;line-height:1;padding:2px 6px;border-radius:6px}
+.dayfilter .x:hover{background:var(--surface-1);color:var(--ink-1)}
 
 /* ------------------------------ التذكير ----------------------------- */
 .reminder{

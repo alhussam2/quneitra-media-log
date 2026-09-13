@@ -23,6 +23,7 @@ const state = {
   reports: {},              // scope -> صف آخر تقرير
   editingId: null,
   listRange: "month",
+  dayFilter: null,          // ISO ليوم واحد عند النقر على مربّع الشريط
   listOwner: "_all",
   reportOwner: "_all",
   reportPreset: "month",
@@ -352,7 +353,10 @@ function renderStrip() {
   for (let i = 1; i <= days; i++) {
     const d = from.slice(0, 8) + String(i).padStart(2, "0");
     const c = counts[d] || 0;
-    h += `<span class="day${c ? " has" : ""}${d === t ? " today" : ""}" title="${i} ${esc(label)} — ${plural(c)}"></span>`;
+    const tip = `${i} ${esc(label)} — ${plural(c)}${d === t ? " · اليوم" : ""}${c ? " (اضغط للعرض)" : ""}`;
+    // المربّعات التي فيها مواد قابلة للنقر: تفتح قائمة مواد ذاك اليوم
+    const tap = c ? ` role="button" tabindex="0" data-date="${d}"` : "";
+    h += `<span class="day${c ? " has" : ""}${d === t ? " today" : ""}"${tap} title="${tip}"></span>`;
   }
   $("#strip").innerHTML = h;
   $("#stripLabel").textContent = `إنتاج ${label}`;
@@ -418,15 +422,24 @@ function entryHTML(e) {
 function renderList() {
   const q = $("#search").value.trim().toLowerCase();
   const r = rangeFor(state.listRange);
+  const day = state.dayFilter;   // عند النقر على مربّع الشريط: يوم واحد يتجاوز الفترة
   let rows = byOwner(state.entries, isAdmin() ? state.listOwner : "_all")
-    .filter((e) => inRange(e, r.from, r.to));
+    .filter((e) => day ? String(e.date) === day : inRange(e, r.from, r.to));
   if (q) {
     rows = rows.filter((e) =>
       `${e.title} ${e.notes} ${e.link} ${e.extra} ${e.name}`.toLowerCase().includes(q));
   }
   rows = rows.slice().reverse();
 
-  $("#listRangeLabel").textContent = r.label + (isAdmin() && state.listOwner !== "_all" ? ` — ${ownerLabel(state.listOwner)}` : "");
+  // لافتة تصفية اليوم: «اليوم» إن كان تاريخه اليوم، وإلا تاريخه بالعربي
+  const dfEl = $("#dayFilter");
+  if (dfEl) {
+    dfEl.classList.toggle("on", Boolean(day));
+    if (day) $("#dayFilterLabel").textContent = day === todayISO() ? "مواد اليوم" : `مواد يوم ${fmtDate(day)}`;
+  }
+
+  const ownerSuffix = isAdmin() && state.listOwner !== "_all" ? ` — ${ownerLabel(state.listOwner)}` : "";
+  $("#listRangeLabel").textContent = (day ? (day === todayISO() ? "مواد اليوم" : fmtDate(day)) : r.label) + ownerSuffix;
   $("#listCount").textContent = plural(rows.length);
   $("#entries").innerHTML = rows.length
     ? rows.map(entryHTML).join("")
@@ -952,8 +965,24 @@ const sortEntries = () =>
 function wireListAndReport() {
   $("#search").addEventListener("input", renderList);
 
+  // النقر على مربّع فيه مواد: افتح قائمة مواد ذاك اليوم
+  function openDay(el) {
+    const d = el && el.dataset ? el.dataset.date : null;
+    if (!d) return;
+    state.dayFilter = d;
+    $("#search").value = "";                 // لا نخلط بحثاً قديماً مع تصفية اليوم
+    setView("list");
+    renderList();
+  }
+  $("#strip").addEventListener("click", (e) => openDay(e.target.closest(".day.has")));
+  $("#strip").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openDay(e.target.closest(".day.has")); }
+  });
+  $("#dayFilterClear").addEventListener("click", () => { state.dayFilter = null; renderList(); });
+
   $("#listChips").addEventListener("click", (e) => {
     const c = e.target.closest(".chip"); if (!c) return;
+    state.dayFilter = null;                 // تبديل الفترة يلغي تصفية اليوم
     state.listRange = c.dataset.range;
     $("#listChips").querySelectorAll(".chip").forEach((x) => x.setAttribute("aria-pressed", String(x === c)));
     renderList();
@@ -1274,7 +1303,10 @@ async function enterApp() {
 
 function wireTabs() {
   document.querySelectorAll(".tab").forEach((t) =>
-    t.addEventListener("click", () => setView(t.dataset.view)));
+    t.addEventListener("click", () => {
+      if (state.dayFilter) { state.dayFilter = null; renderList(); }  // تنقّل يدوي يلغي تصفية اليوم
+      setView(t.dataset.view);
+    }));
 }
 
 async function boot() {
