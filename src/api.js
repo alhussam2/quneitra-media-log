@@ -14,6 +14,26 @@ export const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, storageKey: "qml-auth" },
 });
 
+// على WebView تتجمّد مؤقّتات gotrue بالخلفية وحدث visibilitychange قد لا
+// يصل، فيبقى التوكن منتهياً حين يعود المستخدم. نجدّده صراحةً كلّما رجعت
+// الشاشة للواجهة، فتنجح حتى أوّل ضغطة بلا انتظار خطأ ثم إعادة محاولة.
+async function keepSessionFresh() {
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) return;                                  // لا جلسة أصلاً
+    const secsLeft = (session.expires_at ?? 0) - Math.floor(Date.now() / 1000);
+    if (secsLeft < 300) await sb.auth.refreshSession();    // منتهٍ أو أوشك
+  } catch { /* لا نُفشل شيئاً بسبب محاولة تجديد */ }
+}
+
+if (typeof document !== "undefined") {
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") keepSessionFresh();
+  });
+  addEventListener("focus", keepSessionFresh);
+  addEventListener("pageshow", keepSessionFresh);          // العودة من ذاكرة الصفحة
+}
+
 // الموظف يدخل باسم مستخدم فنركّب له البريد الداخلي؛ ومن يملك بريداً
 // حقيقياً (الأدمن عادةً) يكتبه كما هو فيُستعمل حرفياً — وتبقى له
 // استعادة كلمة السر بالبريد.
@@ -188,7 +208,13 @@ const FN_ERRORS = {
   server_error: "الدالة وقعت — شوف Logs في Supabase.",
 };
 
-async function callFn(name, payload) {
+// توكن الدخول ينتهي كل ساعة. على WebView تتجمّد مؤقّتات التجديد التلقائي
+// حين يقعد التطبيق بالخلفية، فأوّل نداء بعد خمول طويل قد يرجع 401 بتوكن
+// منتهٍ. فبدل أن نفشل بصمت، نجدّد الجلسة مرّة ونعيد المحاولة تلقائياً.
+const isAuthErr = (status, code) =>
+  String(status) === "401" || code === "invalid_token" || code === "missing_token";
+
+async function callFn(name, payload, _retried = false) {
   const { data, error } = await sb.functions.invoke(name, { body: payload });
   if (error) {
     // نقرأ جسم الرد لنعرض سبباً حقيقياً بدل «ما زبطت»
@@ -198,6 +224,12 @@ async function callFn(name, payload) {
       code = b?.error || "";
       detail = b?.detail || b?.message || b?.msg || "";
     } catch { /* الرد ليس JSON */ }
+
+    // توكن منتهٍ؟ جدّد الجلسة مرّة واحدة وأعِد النداء قبل إزعاج المستخدم
+    if (isAuthErr(status, code) && !_retried) {
+      const { error: rErr } = await sb.auth.refreshSession();
+      if (!rErr) return callFn(name, payload, true);
+    }
 
     if (FN_ERRORS[code]) throw new Error(FN_ERRORS[code]);
 

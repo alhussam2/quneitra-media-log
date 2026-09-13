@@ -158,10 +158,11 @@ Deno.serve(async (req) => {
       return json({ error: "not_facebook" }, 400);
     }
 
-    // ---- (ب) قراءة الصفحة: العنوان ورقم الفيديو ----
+    // ---- (ب) قراءة الصفحة: العنوان ورقم الفيديو والمدة من الوسوم ----
     let pageTitle: string | null = null;
     let videoId: string | null = null;
     let canonical: string | null = null;
+    let htmlDurationSec: number | null = null;   // من og:video:duration إن وُجد
 
     let fetchError: string | null = null;
     try {
@@ -180,6 +181,26 @@ Deno.serve(async (req) => {
         const t = meta(text, "title");
         if (t) pageTitle = t.replace(/^[^|]*\|\s*/, "").trim();  // احذف «٢٫٥ ألف مشاهدة · ٤٦ تفاعلاً |»
       }
+
+      // فيسبوك يضع مدة الفيديو بالثواني في وسم og:video:duration — مصدر
+      // مباشر لا يحتاج Apify. يظهر في صفحات الفيديو غالباً، لا في كل منشور.
+      const ogDur = meta(text, "video:duration");
+      if (ogDur && /^\d+(\.\d+)?$/.test(ogDur)) {
+        const n = +ogDur;
+        if (n > 0 && n < 86400) htmlDurationSec = n;
+      }
+      // بعض القوالب تضعها في وسم JSON منظّم بدل og
+      if (htmlDurationSec == null) {
+        const j = text.match(/"duration"\s*:\s*"?PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?"?/i)
+              ||  text.match(/"(?:video_)?duration(?:_ms)?"\s*:\s*"?(\d+(?:\.\d+)?)"?/i);
+        if (j) {
+          let sec: number;
+          if (j[0].includes("PT")) sec = (+(j[1] || 0)) * 3600 + (+(j[2] || 0)) * 60 + (+(j[3] || 0));
+          else { const raw = +j[1]; sec = /_ms/i.test(j[0]) || raw > 1e5 ? raw / 1000 : raw; }
+          if (sec > 0 && sec < 86400) htmlDurationSec = sec;
+        }
+      }
+
       videoId = (text.match(/"video_id"\s*:\s*"(\d+)"/) || [])[1] ?? null;
       if (!videoId) videoId = (target.match(/[?&]v=(\d+)/) || target.match(/\/videos\/(?:[^/]*\/)?(\d+)/) || [])[1] ?? null;
 
@@ -219,7 +240,8 @@ Deno.serve(async (req) => {
     let apifyError: string | null = null;
     let apifyTried = false;
     let usedSource: string | null = null;
-    if (!date && apifyToken) {
+    let apifyKeys: string[] | null = null;   // تشخيص: أسماء حقول نتيجة Apify
+    if (!date && apifyToken) {   // لا نشغّل Apify لأجل المدة وحدها (توفير التكلفة)
       apifyTried = true;
       try {
         const runUrl = `https://api.apify.com/v2/acts/apify~facebook-posts-scraper/run-sync-get-dataset-items?token=${encodeURIComponent(apifyToken)}`;
@@ -235,6 +257,7 @@ Deno.serve(async (req) => {
           const items = await res.json();
           const item = Array.isArray(items) ? items[0] : null;
           if (item) {
+            apifyKeys = Object.keys(item as Record<string, unknown>);
             const d = findDateDeep(item);
             if (d) { date = d; usedSource = "apify"; }
             // سجّل النداء، ثم خزّن التكلفة الحقيقية من Apify (كلاهما ثانوي)
@@ -271,6 +294,12 @@ Deno.serve(async (req) => {
       }
     }
 
+    // مدة من وسوم الصفحة كملاذ أخير (مجانية، لا تكلّف Apify)
+    if (!duration && htmlDurationSec != null) {
+      duration = fmtDuration(htmlDurationSec);
+      if (!usedSource) usedSource = "og";
+    }
+
     const title = (graphTitle || pageTitle || "").replace(/\s+/g, " ").trim();
     if (!title && !date && !duration) {
       return json({ error: "nothing_found", detail: fetchError, videoId, canonical }, 404);
@@ -279,15 +308,17 @@ Deno.serve(async (req) => {
     return json({
       ok: true,
       title,
-      date,                       // null ما لم يُضبط FB_PAGE_TOKEN
-      duration,                   // null ما لم يُضبط FB_PAGE_TOKEN
+      date,
+      duration,
       videoId,
       canonical,
       source: graphTitle ? "graph" : (usedSource ?? "page"),
+      durationSource: duration ? (graphTitle && token ? "graph" : (htmlDurationSec != null && usedSource === "og" ? "og" : "apify")) : null,
       hasToken: Boolean(token),
       hasApify: Boolean(apifyToken),
       apifyTried,
       apifyError,
+      apifyKeys,                  // تشخيص مؤقت: حقول نتيجة Apify حين نراجع المدة
       graphError,                 // يظهر في الواجهة حين يكون التوكن منتهياً
       fetchError,                 // سبب تعذّر قراءة الصفحة، إن حصل
     });
