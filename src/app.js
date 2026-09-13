@@ -357,7 +357,14 @@ function renderStrip() {
     // كل الأيام قابلة للنقر — الملوّن يعرض مواده، والفارغ يعرض «ما في مواد»
     h += `<span class="day${c ? " has" : ""}${d === t ? " today" : ""}" role="button" tabindex="0" data-date="${d}" title="${tip}">${i}</span>`;
   }
-  $("#strip").innerHTML = h;
+  const strip = $("#strip");
+  strip.innerHTML = h;
+  // زحلق تلقائياً حتى يظهر اليوم الحالي بالوسط (يعمل مع RTL)
+  const tc = strip.querySelector(".day.today");
+  if (tc) requestAnimationFrame(() => {
+    const cr = strip.getBoundingClientRect(), tr = tc.getBoundingClientRect();
+    strip.scrollLeft += (tr.left - cr.left) - strip.clientWidth / 2 + tr.width / 2;
+  });
   $("#stripLabel").textContent = `إنتاج ${label}`;
   $("#stripCount").textContent = plural(Object.values(counts).reduce((a, b) => a + b, 0));
 }
